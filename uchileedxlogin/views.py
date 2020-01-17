@@ -32,14 +32,14 @@ class EdxLoginLoginRedirect(View):
     def get(self, request):
         if request.user.is_authenticated():
             return HttpResponseRedirect('/')
-        return HttpResponseRedirect('{}?{}'.format(settings.REQUEST_URL, urlencode(self.service_parameters(request))))
+        return HttpResponseRedirect('{}?{}'.format(settings.EDXLOGIN_REQUEST_URL, urlencode(self.service_parameters(request))))
 
     def service_parameters(self, request):
         """
         store the service parameter for uchileedxlogin.
         """
         parameters = {
-            'service': settings.SERVICE,
+            'service': settings.EDXLOGIN_SERVICE,
         }
         return parameters
 
@@ -64,8 +64,8 @@ class EdxLoginCallback(View):
         """
             Verify if the ticket is correct
         """
-        parameters = {'service': settings.SERVICE, 'ticket': ticket}
-        result = requests.get(settings.RESULT_VALIDATE, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
+        parameters = {'service': settings.EDXLOGIN_SERVICE, 'ticket': ticket}
+        result = requests.get(settings.EDXLOGIN_RESULT_VALIDATE, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
         if result.status_code != 200:
             logger.error("{} {}".format(result.request, result.request.headers))
             raise Exception("Wrong status code {} {}".format(result.status_code, result.text))
@@ -90,7 +90,7 @@ class EdxLoginCallback(View):
         parameters = {
             'username': username
         }
-        result = requests.get(settings.USER_INFO_URL, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
+        result = requests.get(settings.EDXLOGIN_USER_INFO_URL, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
         return json.loads(result.text)
 
     def get_user_email(self, rut):
@@ -100,26 +100,23 @@ class EdxLoginCallback(View):
         parameters = {
             'rutUsuario': rut
         }
-        result = requests.post(settings.USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json', 'Authorization': 'Basic ZGVzYTpkZXNh'})
+        result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json', 'Authorization': 'Basic ZGVzYTpkZXNh'})
         data = json.loads(result.text)
-        return str(data['usuarioLdap']['mail'])
+        return data['usuarioLdap']['mail']
 
     def get_or_create_user(self, user_data):
         """
         Get or create the user given the user data.
         If the user exists, update the email address in case the users has updated it.
-        """
-        mail = self.get_user_email(user_data['rut'])
+        """        
         try:
             clave_user = EdxLoginUser.objects.get(run=user_data['rut'])
             user = clave_user.user
             
-            if user.email != mail and not User.objects.filter(email=mail).exists():
-                user.email = mail
-                user.save()
             return user
         except EdxLoginUser.DoesNotExist:
             with transaction.atomic():
+                mail = self.get_user_email(user_data['rut'])
                 user = self.create_user_by_data(user_data, mail)
                 clave_unica = EdxLoginUser.objects.create(
                     user=user,
@@ -160,7 +157,3 @@ class EdxLoginCallback(View):
         user.save()
 
         return user
-
-    def fetch_json(self, url):
-        response = requests.get(url)
-        return response.json()

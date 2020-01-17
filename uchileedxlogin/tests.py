@@ -30,9 +30,9 @@ class TestRedirectView(TestCase):
         args = urlparse.parse_qs(request.query)
 
         self.assertEqual(result.status_code, 302)
-        self.assertEqual(request.netloc, settings.HOST.replace('http://','') + ':9513')
+        self.assertEqual(request.netloc, settings.EDXLOGIN_HOST.replace('http://','') + ':9513')
         self.assertEqual(request.path, '/login')        
-        self.assertEqual(args['service'][0], settings.SERVICE)
+        self.assertEqual(args['service'][0], settings.EDXLOGIN_SERVICE)
 
     def test_redirect_already_logged(self):
         user = User.objects.create_user(username='testuser', password='123')
@@ -44,23 +44,8 @@ class TestRedirectView(TestCase):
 
 def create_user(user_data):
     return User.objects.create_user(
-        username=user_data['username'],
+        username=user_data['username'].replace('.','_'),
         email=user_data['email'])
-
-def mocked_requests_get(*args, **kwargs):
-    class MockResponse:
-        def __init__(self, json_data, status_code):
-            self.json_data = json_data
-            self.status_code = status_code
-
-        def json(self):
-            return self.json_data
-    if args[0] == settings.RESULT_VALIDATE + '?ticket=test&service=callback':
-        return MockResponse({"content":'yes\nfelipe.espinoza.r\n'}, 302)
-    elif args[0] == settings.USER_INFO_URL + '?username=felipe.espinoza.r':
-        return MockResponse({"apellidoPaterno":"ESPINOZA","apellidoMaterno":"ROSALES","nombres":"FELIPE ALEJANDRO","nombreCompleto":"FELIPE ALEJANDRO ESPINOZA ROSALES","rut":"0187658322"}, 302)
-
-    return MockResponse(None, 404)
 
 class TestCallbackView(TestCase):
     def setUp(self):
@@ -79,39 +64,53 @@ class TestCallbackView(TestCase):
     def tearDown(self):
         self.module_patcher.stop()
 
-    @patch('requests.get', side_effect=mocked_requests_get)
-    def test_login_parameters(self, mock_get):
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_login_parameters(self, get, post):
         # Assert requests.get calls
-        mgc = EdxLoginCallback()
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"usuarioLdap":{"mail":"test@test.test"}}))]
 
-        json_data = mgc.fetch_json(settings.RESULT_VALIDATE + '?ticket=test&service=callback')
-        self.assertEqual(json_data, {"content":'yes\nfelipe.espinoza.r\n'})
+        result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
+        self.assertEqual(result.status_code, 302)
 
-        json_data = mgc.fetch_json(settings.USER_INFO_URL + '?username=felipe.espinoza.r')
-        self.assertEqual(json_data, {"apellidoPaterno":"ESPINOZA","apellidoMaterno":"ROSALES","nombres":"FELIPE ALEJANDRO","nombreCompleto":"FELIPE ALEJANDRO ESPINOZA ROSALES","rut":"0187658322"})
-        
-    @patch('requests.get', side_effect=mocked_requests_get)
-    def test_login_wrong_ticket(self, mock_get):
+        username = parse_qs(get.call_args_list[1][1]['params'])
+        self.assertEqual(get.call_args_list[0][0][0], settings.EDXLOGIN_RESULT_VALIDATE)
+        self.assertEqual(username['username'][0], 'test.name')
+        self.assertEqual(get.call_args_list[1][0][0], settings.EDXLOGIN_USER_INFO_URL)
+
+        request = urlparse.urlparse(result.url)
+        self.assertEqual(request.path, '/')
+    
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_login_create_user(self, get, post, mock_created_user):
         # Assert requests.get calls
-        mgc = EdxLoginCallback()
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"usuarioLdap":{"mail":"test@test.test"}}))]
 
-        json_data = mgc.fetch_json(settings.RESULT_VALIDATE + '?ticket=wrongticket&service=callback')
-        self.assertEqual(json_data, None)        
+        result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST.NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST.NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334'})
 
-    @patch('requests.get', side_effect=mocked_requests_get)
-    def test_login_wrong_service(self, mock_get):
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_login_wrong_ticket(self, get, post):
         # Assert requests.get calls
-        mgc = EdxLoginCallback()
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'no\n\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"usuarioLdap":{"mail":"test@test.test"}}))]
 
-        json_data = mgc.fetch_json(settings.RESULT_VALIDATE + '?ticket=test&service=wrongcallback')
-        self.assertEqual(json_data, None)        
-       
-    @patch('requests.get', side_effect=mocked_requests_get)
-    def test_login_wrong_username(self, mock_get):
-        mgc = EdxLoginCallback()
+        result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'wrongticket'})
+        request = urlparse.urlparse(result.url)
+        self.assertEqual(request.path, '/uchileedxlogin/login/')
 
-        json_data = mgc.fetch_json(settings.RESULT_VALIDATE + '?ticket=test&service=callback')
-        self.assertEqual(json_data, {"content":'yes\nfelipe.espinoza.r\n'})
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_login_wrong_username(self, get, post):
+        # Assert requests.get calls
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\nwrongname\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"usuarioLdap":{"mail":"test@test.test"}}))]
 
-        json_data = mgc.fetch_json(settings.USER_INFO_URL + '?username=None')
-        self.assertEqual(json_data, None)
+        result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
+        request = urlparse.urlparse(result.url)
+        self.assertEqual(request.path, '/uchileedxlogin/login/')
