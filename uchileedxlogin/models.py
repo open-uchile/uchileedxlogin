@@ -10,3 +10,11 @@ class EdxLoginUser(models.Model):
     run = models.CharField(max_length=18, unique=True, db_index=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, blank=False, null=False)
 
+class EdxLoginUserCourseRegistration(models.Model):   
+    MODE_CHOICES = (("audit", "audit"), ("honor", "honor"))
+
+    run = models.CharField(max_length=18, unique=True, db_index=True)    
+    
+    course = CourseKeyField(max_length=255)
+    mode = models.TextField(choices=MODE_CHOICES)
+    auto_enroll = models.BooleanField(default=True)

@@ -9,7 +9,7 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.generic.base import View
 from django.http import HttpResponse
-from models import EdxLoginUser
+from models import EdxLoginUser, EdxLoginUserCourseRegistration
 from urllib import urlencode
 from itertools import cycle
 from opaque_keys.edx.keys import CourseKey
@@ -54,7 +54,8 @@ class EdxLoginLoginRedirect(View):
         return url
 
 class EdxLoginCallback(View): 
-
+    USERNAME_MAX_LENGTH = 30
+    
     def get(self, request):
         ticket = request.GET.get('ticket')
         if ticket is None:
@@ -131,10 +132,11 @@ class EdxLoginCallback(View):
             with transaction.atomic():
                 mail = self.get_user_email(user_data['rut'])
                 user = self.create_user_by_data(user_data, mail)
-                clave_unica = EdxLoginUser.objects.create(
+                edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
                     run=user_data['rut']
-                )                
+                )
+                self.enroll_pending_courses(edxlogin_user)                
             return user
 
     def create_user_by_data(self, user_data, mail):
@@ -151,7 +153,7 @@ class EdxLoginCallback(View):
 
         form = AccountCreationForm(
             data={
-                "username": user_data['username'].replace('.','_'),
+                "username": self.generate_username(user_data),
                 "email": user_data['email'],
                 "password": "invalid",  # Temporary password
                 "name": user_data['nombreCompleto'],
@@ -170,3 +172,90 @@ class EdxLoginCallback(View):
         user.save()
 
         return user
+
+    def enroll_pending_courses(self, edxlogin_user):
+        """
+        Enroll the user in the pending courses, removing the enrollments when
+        they are applied.
+        """
+        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        registrations = EdxLoginUserCourseRegistration.objects.filter(run=edxlogin_user.run)
+        for item in registrations:
+            if item.auto_enroll:
+                CourseEnrollment.enroll(edxlogin_user.user, item.course, mode=item.mode)
+            else:
+                CourseEnrollmentAllowed.objects.create(course_id=item.course, email=edxlogin_user.user.email, user=edxlogin_user.user)
+        registrations.delete()
+    
+    def generate_username(self, user_data):
+        """
+        Generate an username for the given user_data
+        This generation will be done as follow:
+        1. return first_name[0] + "_" + last_name[0]
+        2. return first_name[0] + "_" + last_name[0] + "_" + last_name[1..N][0..N]
+        3. return first_name[0] + "_" first_name[1..N][0..N] + "_" + last_name[0]
+        4. return first_name[0] + "_" first_name[1..N][0..N] + "_" + last_name[1..N][0..N]
+        5. return first_name[0] + "_" + last_name[0] + N
+        """
+        aux_last_name = user_data['apellidoPaterno'] + user_data['apellidoMaterno']
+        first_name = [unidecode.unidecode(x).replace(' ', '_') for x in user_data['nombres']]
+        last_name = [unidecode.unidecode(x).replace(' ', '_') for x in aux_last_name]
+
+        # 1.
+        test_name = first_name[0] + "_" + last_name[0]
+        if len(test_name) <= EdxLoginCallback.USERNAME_MAX_LENGTH and not User.objects.filter(username=test_name).exists():
+            return test_name
+
+        # 2.
+        for i in range(len(last_name[1:])):
+            test_name = test_name + "_"
+            for j in range(len(last_name[i + 1])):
+                test_name = test_name + last_name[i + 1][j]
+                if len(test_name) > EdxLoginCallback.USERNAME_MAX_LENGTH:
+                    break
+                if not User.objects.filter(username=test_name).exists():
+                    return test_name
+
+        # 3.
+        first_name_temp = first_name[0]
+        for i in range(len(first_name[1:])):
+            first_name_temp = first_name_temp + "_"
+            for j in range(len(first_name[i + 1])):
+                first_name_temp = first_name_temp + first_name[i + 1][j]
+                test_name = first_name_temp + "_" + last_name[0]
+                if len(test_name) > EdxLoginCallback.USERNAME_MAX_LENGTH:
+                    break
+                if not User.objects.filter(username=test_name).exists():
+                    return test_name
+
+        # 4.
+        first_name_temp = first_name[0]
+        for first_index in range(len(first_name[1:])):
+            first_name_temp = first_name_temp + "_"
+            for first_second_index in range(len(first_name[first_index + 1])):
+                first_name_temp = first_name_temp + first_name[first_index + 1][first_second_index]
+                test_name = first_name_temp + "_" + last_name[0]
+                if len(test_name) > EdxLoginCallback.USERNAME_MAX_LENGTH:
+                    break
+                for second_index in range(len(last_name[1:])):
+                    test_name = test_name + "_"
+                    for second_second_index in range(len(last_name[second_index + 1])):
+                        test_name = test_name + last_name[second_index + 1][second_second_index]
+                        if len(test_name) > EdxLoginCallback.USERNAME_MAX_LENGTH:
+                            break
+                        if not User.objects.filter(username=test_name).exists():
+                            return test_name
+
+        # 5.
+        # Make sure we have space to add the numbers in the username
+        test_name = first_name[0] + "_" + last_name[0]
+        test_name = test_name[0:(EdxLoginCallback.USERNAME_MAX_LENGTH - 5)]
+        if test_name[-1] == '_':
+            test_name = test_name[:-1]
+        for i in range(1, 10000):
+            name_tmp = test_name + str(i)
+            if not User.objects.filter(username=name_tmp).exists():
+                return name_tmp
+
+        # Username cant be generated
+        raise Exception("Error generating username for name {}".format())

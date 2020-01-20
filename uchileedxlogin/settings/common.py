@@ -1,5 +1,5 @@
 def plugin_settings(settings):    
-    edxlogin_host = 'http://172.25.14.37'
+    edxlogin_host = 'http://172.25.14.6'
 
     settings.EDXLOGIN_CLIENT_ID = 'desa'
     settings.EDXLOGIN_CLIENT_SECRET = 'desa'

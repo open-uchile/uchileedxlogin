@@ -30,7 +30,7 @@ class TestRedirectView(TestCase):
         args = urlparse.parse_qs(request.query)
 
         self.assertEqual(result.status_code, 302)
-        self.assertEqual(request.netloc, '172.25.14.37:9513')
+        self.assertEqual(request.netloc, '172.25.14.6:9513')
         self.assertEqual(request.path, '/login')        
         self.assertEqual(args['service'][0], 'http://testserver/uchileedxlogin/callback/')
 
