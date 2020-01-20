@@ -14,6 +14,7 @@ from urllib import urlencode
 from itertools import cycle
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys import InvalidKeyError
+from requests.auth import HTTPBasicAuth
 
 import json
 import requests
@@ -39,9 +40,18 @@ class EdxLoginLoginRedirect(View):
         store the service parameter for uchileedxlogin.
         """
         parameters = {
-            'service': settings.EDXLOGIN_SERVICE,
+            'service': EdxLoginLoginRedirect.get_callback_url(request),
+            'renew': 'true'
         }
         return parameters
+    
+    @staticmethod
+    def get_callback_url(request):
+        """
+        Get the callback url
+        """
+        url = request.build_absolute_uri(reverse('uchileedxlogin-login:callback'))        
+        return url
 
 class EdxLoginCallback(View): 
 
@@ -64,20 +74,19 @@ class EdxLoginCallback(View):
         """
             Verify if the ticket is correct
         """
-        parameters = {'service': settings.EDXLOGIN_SERVICE, 'ticket': ticket}
+        parameters = {'service': EdxLoginLoginRedirect.get_callback_url(request), 'ticket': ticket, 'renew': 'true'}
         result = requests.get(settings.EDXLOGIN_RESULT_VALIDATE, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
-        if result.status_code != 200:
-            logger.error("{} {}".format(result.request, result.request.headers))
-            raise Exception("Wrong status code {} {}".format(result.status_code, result.text))
-        r = result.content.split('\n')
-        if r[0] == 'yes':
-            return r[1]
+        if result.status_code == 200:
+            r = result.content.split('\n')
+            if r[0] == 'yes':
+                return r[1]
+       
         return None
 
     def login_user(self, request, username):
         """
         Get or create the user and log him in.
-        """        
+        """              
         user_data = self.get_user_data(username)
         user_data['username'] = username
         user = self.get_or_create_user(user_data)
@@ -91,6 +100,9 @@ class EdxLoginCallback(View):
             'username': username
         }
         result = requests.get(settings.EDXLOGIN_USER_INFO_URL, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
+        if result.status_code != 200:
+            logger.error("{} {}".format(result.request, result.request.headers))
+            raise Exception("Wrong username {} {}".format(result.status_code, username))
         return json.loads(result.text)
 
     def get_user_email(self, rut):
@@ -100,7 +112,8 @@ class EdxLoginCallback(View):
         parameters = {
             'rutUsuario': rut
         }
-        result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json', 'Authorization': 'Basic ZGVzYTpkZXNh'})
+        auth = HTTPBasicAuth(settings.EDXLOGIN_CLIENT_ID, settings.EDXLOGIN_CLIENT_SECRET)
+        result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json'}, auth=auth)
         data = json.loads(result.text)
         return data['usuarioLdap']['mail']
 

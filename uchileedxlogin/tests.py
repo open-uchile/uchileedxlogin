@@ -30,9 +30,9 @@ class TestRedirectView(TestCase):
         args = urlparse.parse_qs(request.query)
 
         self.assertEqual(result.status_code, 302)
-        self.assertEqual(request.netloc, settings.EDXLOGIN_HOST.replace('http://','') + ':9513')
+        self.assertEqual(request.netloc, '172.25.14.37:9513')
         self.assertEqual(request.path, '/login')        
-        self.assertEqual(args['service'][0], settings.EDXLOGIN_SERVICE)
+        self.assertEqual(args['service'][0], 'http://testserver/uchileedxlogin/callback/')
 
     def test_redirect_already_logged(self):
         user = User.objects.create_user(username='testuser', password='123')
@@ -78,9 +78,6 @@ class TestCallbackView(TestCase):
         self.assertEqual(get.call_args_list[0][0][0], settings.EDXLOGIN_RESULT_VALIDATE)
         self.assertEqual(username['username'][0], 'test.name')
         self.assertEqual(get.call_args_list[1][0][0], settings.EDXLOGIN_USER_INFO_URL)
-
-        request = urlparse.urlparse(result.url)
-        self.assertEqual(request.path, '/')
     
     @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
     @patch('requests.post')
