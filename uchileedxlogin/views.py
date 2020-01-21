@@ -260,3 +260,128 @@ class EdxLoginCallback(View):
 
         # Username cant be generated
         raise Exception("Error generating username for name {}".format())
+
+
+class EdxLoginStaff(View):
+    def validarRut(self, rut):
+        rut = rut.upper()
+        rut = rut.replace("-", "")
+        rut = rut.replace(".", "")
+        rut = rut.strip()
+        aux = rut[:-1]
+        dv = rut[-1:]
+
+        revertido = map(int, reversed(str(aux)))
+        factors = cycle(range(2, 8))
+        s = sum(d * f for d, f in zip(revertido, factors))
+        res = (-s) % 11
+
+        if str(res) == dv:
+            return True
+        elif dv == "K" and res == 10:
+            return True
+        else:
+            return False
+
+    def validate_course(self, id_curso):
+        from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+        try:
+            aux = CourseKey.from_string(id_curso)
+            return CourseOverview.objects.filter(id=aux).exists()
+        except InvalidKeyError:
+            return False
+
+    def validate_data(self, request, lista_run, context):
+        run_malos = ""
+        # validacion de los run
+        for run in lista_run:
+            try:
+                if not self.validarRut(run):
+                    run_malos += run + " - "
+            except Exception:
+                run_malos += run + " - "
+        run_malos = run_malos[:-3]
+
+        # validaciones de otros campos
+        # si existe run malo
+        if run_malos != "":
+            context['run_malos'] = run_malos
+
+        # valida curso
+        if request.POST.get("course", "") == "":
+            context['curso2'] = ''
+        elif not self.validate_course(request.POST.get("course", "")):  # valida si existe el curso
+            context['error_curso'] = ''
+
+        # si no se ingreso run
+        if not lista_run:
+            context['no_run'] = ''
+
+        # si el modo es incorrecto
+        if not request.POST.get("modes", None) in [x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
+            context['error_mode'] = ''
+       
+        return context
+
+    def get(self, request):
+        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
+        return render(request, 'edxlogin/staff.html', context)
+
+    def post(self, request):
+        lista_run = request.POST.get("runs", "").split('\n')
+        # limpieza de los run ingresados
+        lista_run = [run.upper() for run in lista_run]
+        lista_run = [run.replace("-", "") for run in lista_run]
+        lista_run = [run.replace(".", "") for run in lista_run]
+        lista_run = [run.strip() for run in lista_run]
+        lista_run = [run for run in lista_run if run]
+
+        # verifica si el checkbox de auto enroll fue seleccionado
+        enroll = False
+        if request.POST.getlist("enroll"):
+            enroll = True
+
+        context = {'runs': request.POST.get('runs'), 'curso': request.POST.get("course", ""), 'auto_enroll': enroll, 'modo': request.POST.get("modes", None)}
+        # validacion de datos
+        context = self.validate_data(request, lista_run, context)
+        # retorna si hubo al menos un error
+        if len(context) > 4:
+            return render(request, 'edxlogin/staff.html', context)
+
+        # guarda el form
+        for run in lista_run:
+            registro = EdxLoginUserCourseRegistration()
+            while len(run) < 10:
+                run = "0" + run
+            registro.run = run
+            registro.course = request.POST.get("course", "")
+            registro.mode = request.POST.get("modes", None)
+            registro.auto_enroll = enroll
+            registro.save()
+
+        return render(request, 'edxlogin/staff.html', context=None)
+
+
+class EdxLoginExport(View):
+    """
+        Export all edxlogin users to csv file
+    """
+
+    def get(self, request):
+        data = []
+        users_edxlogin = EdxLoginUser.objects.all().order_by('user__username').values('run', 'user__username', 'user__email')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="users.csv"'
+
+        writer = csv.writer(response, delimiter=';', dialect='excel')
+        data.append([])
+        data[0].extend(['Run', 'Username', 'Email'])
+        i = 1
+        for user in users_edxlogin:
+            data.append([])
+            data[i].extend([user['run'], user['user__username'], user['user__email']])
+            i += 1
+        writer.writerows(data)
+
+        return response

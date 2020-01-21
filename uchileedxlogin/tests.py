@@ -12,7 +12,7 @@ from opaque_keys.edx.locator import CourseLocator
 import json
 import urlparse
 
-from .views import EdxLoginLoginRedirect, EdxLoginCallback
+from .views import EdxLoginLoginRedirect, EdxLoginCallback, EdxLoginStaff
 from .models import EdxLoginUserCourseRegistration
 # Create your tests here.
 class TestRedirectView(TestCase):
@@ -30,7 +30,7 @@ class TestRedirectView(TestCase):
         args = urlparse.parse_qs(request.query)
 
         self.assertEqual(result.status_code, 302)
-        self.assertEqual(request.netloc, '172.25.14.3:9513')
+        self.assertEqual(request.netloc, '172.25.14.11:9513')
         self.assertEqual(request.path, '/login')        
         self.assertEqual(args['service'][0], 'http://testserver/uchileedxlogin/callback/')
 
@@ -185,3 +185,104 @@ class TestCallbackView(TestCase):
         self.assertEqual(self.modules['student.models'].CourseEnrollment.method_calls[0][1][1], CourseLocator.from_string("course-v1:test+TEST+2019-2"))
         _, _, kwargs = self.modules['student.models'].CourseEnrollmentAllowed.mock_calls[0]
         self.assertEqual(kwargs['course_id'], CourseLocator.from_string("course-v1:test+TEST+2019-4"))
+
+def always_true(x):
+    return True
+
+class TestStaffView(TestCase):
+
+    def setUp(self):
+        self.client = Client()
+        user = User.objects.create_user(username='testuser', password='12345')
+        user.is_staff = True
+        user.save()
+        self.client.login(username='testuser', password='12345')
+
+        result = self.client.get(reverse('uchileedxlogin-login:staff'))
+
+    def test_staff_get(self):
+
+        response = self.client.get(reverse('uchileedxlogin-login:staff'))
+        self.assertEquals(response.status_code, 200)
+        self.assertTemplateUsed(response, 'edxlogin/staff.html')
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
+    def test_staff_post(self, _):
+        post_data = {
+            'runs': '10-8',
+            'course': 'course-v1:mss+MSS001+2019_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)
+
+        aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
+
+        self.assertEqual(aux.run, "0000000108")        
+        self.assertEqual(aux.mode, 'audit')
+        self.assertEqual(aux.auto_enroll, True)
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
+    def test_staff_post_multiple_run(self, _):
+        post_data = {
+            'runs': '10-8\n10-8\n10-8\n10-8\n10-8',            
+            'course': 'course-v1:mss+MSS001+2019_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)
+
+        aux = EdxLoginUserCourseRegistration.objects.filter(run="0000000108")
+        for var in aux:
+            self.assertEqual(var.run, "0000000108")
+            self.assertEqual(var.mode, 'audit')
+            self.assertEqual(var.auto_enroll, True)
+
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 5)
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
+    def test_staff_post_sin_curso(self, _):
+        post_data = {
+            'runs': '10-8',           
+            'course': '',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.context['curso2'], '')
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
+    def test_staff_post_sin_run(self, _):
+        post_data = {
+            'runs': '',           
+            'course': 'course-v1:mss+MSS001+2019_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.context['no_run'], '')
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
+    def test_staff_post_run_malo(self, _):
+        post_data = {
+            'runs': '12345678-9',            
+            'course': 'course-v1:mss+MSS001+2019_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.context['run_malos'], '123456789')
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
