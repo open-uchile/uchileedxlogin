@@ -90,8 +90,9 @@ class EdxLoginCallback(View):
         """              
         user_data = self.get_user_data(username)
         user_data['username'] = username
-        user = self.get_or_create_user(user_data)
-        login(request, user, backend="django.contrib.auth.backends.AllowAllUsersModelBackend",)
+        edxlogin_user = self.get_or_create_user(user_data)
+        self.enroll_pending_courses(edxlogin_user)
+        login(request, edxlogin_user.user, backend="django.contrib.auth.backends.AllowAllUsersModelBackend",)
 
     def get_user_data(self, username):
         """
@@ -124,10 +125,8 @@ class EdxLoginCallback(View):
         If the user exists, update the email address in case the users has updated it.
         """        
         try:
-            clave_user = EdxLoginUser.objects.get(run=user_data['rut'])
-            user = clave_user.user
-            
-            return user
+            clave_user = EdxLoginUser.objects.get(run=user_data['rut'])            
+            return clave_user
         except EdxLoginUser.DoesNotExist:
             with transaction.atomic():                
                 user_data['email'] = self.get_user_email(user_data['rut'])
@@ -135,9 +134,8 @@ class EdxLoginCallback(View):
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
                     run=user_data['rut']
-                )
-                self.enroll_pending_courses(edxlogin_user)                
-            return user
+                )                                
+            return edxlogin_user
             
     def enroll_pending_courses(self, edxlogin_user):
         """
