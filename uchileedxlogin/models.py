@@ -13,7 +13,7 @@ class EdxLoginUser(models.Model):
 class EdxLoginUserCourseRegistration(models.Model):   
     MODE_CHOICES = (("audit", "audit"), ("honor", "honor"))
 
-    run = models.CharField(max_length=18, unique=True, db_index=True)    
+    run = models.CharField(max_length=18, db_index=True)    
     
     course = CourseKeyField(max_length=255)
     mode = models.TextField(choices=MODE_CHOICES)

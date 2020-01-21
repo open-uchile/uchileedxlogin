@@ -13,7 +13,7 @@ import json
 import urlparse
 
 from .views import EdxLoginLoginRedirect, EdxLoginCallback
-
+from .models import EdxLoginUserCourseRegistration
 # Create your tests here.
 class TestRedirectView(TestCase):
 
@@ -44,7 +44,7 @@ class TestRedirectView(TestCase):
 
 def create_user(user_data):
     return User.objects.create_user(
-        username=user_data['username'].replace('.','_'),
+        username=EdxLoginCallback().generate_username(user_data),
         email=user_data['email'])
 
 class TestCallbackView(TestCase):
@@ -84,17 +84,17 @@ class TestCallbackView(TestCase):
     @patch('requests.get')
     def test_login_create_user(self, get, post, mock_created_user):
         # Assert requests.get calls
-        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
         post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"usuarioLdap":{"mail":"test@test.test"}}))]
 
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
-        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST.NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST.NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334'})
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334', 'email': 'test@test.test'})
 
     @patch('requests.post')
     @patch('requests.get')
     def test_login_wrong_ticket(self, get, post):
         # Assert requests.get calls
-        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'no\n\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'no\n\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
         post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"usuarioLdap":{"mail":"test@test.test"}}))]
 
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'wrongticket'})
@@ -111,3 +111,77 @@ class TestCallbackView(TestCase):
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
         request = urlparse.urlparse(result.url)
         self.assertEqual(request.path, '/uchileedxlogin/login/')
+    
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
+    def test_generate_username(self, _):
+        data = {
+            'username': 'test.name', 
+            'apellidoMaterno': 'dd', 
+            'nombres': 'aa bb', 
+            'apellidoPaterno': 'cc', 
+            'nombreCompleto': 'aa bb cc dd', 
+            'rut': '0112223334',
+            'email': 'test@test.test'
+        }        
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_cc')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_cc_d')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_cc_dd')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_b_cc')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_bb_cc')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_b_cc_d')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_b_cc_dd')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_bb_cc_d')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_bb_cc_dd')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_cc1')
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'aa_cc2')
+
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
+    def test_long_name(self, _):
+        data = {
+            'username': 'test.name', 
+            'apellidoMaterno': 'ff', 
+            'nombres': 'a2345678901234567890123 bb', 
+            'apellidoPaterno': '4567890', 
+            'nombreCompleto': 'a2345678901234567890123 bb 4567890 ff', 
+            'rut': '0112223334',
+            'email': 'test@test.test'
+        }
+        
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'a2345678901234567890123_41')
+
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
+    def test_long_name_middle(self, _):
+        data = {
+            'username': 'test.name', 
+            'apellidoMaterno': 'ff', 
+            'nombres': 'a23456789012345678901234 bb', 
+            'apellidoPaterno': '4567890', 
+            'nombreCompleto': 'a23456789012345678901234 bb 4567890 ff', 
+            'rut': '0112223334',
+            'email': 'test@test.test'
+        }
+        self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'a234567890123456789012341')
+    
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
+    @patch("requests.post")
+    @patch('requests.get')
+    def test_test(self, get, post, _):
+        EdxLoginUserCourseRegistration.objects.create(
+            run='0112223334',           
+            course="course-v1:test+TEST+2019-2",
+            mode="honor",
+            auto_enroll=True)
+        EdxLoginUserCourseRegistration.objects.create(
+            run='0112223334',            
+            course="course-v1:test+TEST+2019-4",
+            mode="honor",
+            auto_enroll=False)
+        
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"usuarioLdap":{"mail":"test@test.test"}}))]
+        result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
+    
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(self.modules['student.models'].CourseEnrollment.method_calls[0][1][1], CourseLocator.from_string("course-v1:test+TEST+2019-2"))
+        _, _, kwargs = self.modules['student.models'].CourseEnrollmentAllowed.mock_calls[0]
+        self.assertEqual(kwargs['course_id'], CourseLocator.from_string("course-v1:test+TEST+2019-4"))

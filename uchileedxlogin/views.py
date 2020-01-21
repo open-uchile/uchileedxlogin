@@ -129,17 +129,31 @@ class EdxLoginCallback(View):
             
             return user
         except EdxLoginUser.DoesNotExist:
-            with transaction.atomic():
-                mail = self.get_user_email(user_data['rut'])
-                user = self.create_user_by_data(user_data, mail)
+            with transaction.atomic():                
+                user_data['email'] = self.get_user_email(user_data['rut'])
+                user = self.create_user_by_data(user_data)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
                     run=user_data['rut']
                 )
                 self.enroll_pending_courses(edxlogin_user)                
             return user
+            
+    def enroll_pending_courses(self, edxlogin_user):
+        """
+        Enroll the user in the pending courses, removing the enrollments when
+        they are applied.
+        """
+        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        registrations = EdxLoginUserCourseRegistration.objects.filter(run=edxlogin_user.run)
+        for item in registrations:
+            if item.auto_enroll:
+                CourseEnrollment.enroll(edxlogin_user.user, item.course, mode=item.mode)
+            else:
+                CourseEnrollmentAllowed.objects.create(course_id=item.course, email=edxlogin_user.user.email, user=edxlogin_user.user)
+        registrations.delete()
 
-    def create_user_by_data(self, user_data, mail):
+    def create_user_by_data(self, user_data):
         """
         Create the user by the Django model
         """
@@ -147,8 +161,8 @@ class EdxLoginCallback(View):
         from student.helpers import do_create_account
 
         # Check and remove email if its already registered
-        user_data['email'] = mail
-        if User.objects.filter(email=mail).exists():
+        
+        if User.objects.filter(email=user_data['email']).exists():
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
 
         form = AccountCreationForm(
@@ -172,20 +186,6 @@ class EdxLoginCallback(View):
         user.save()
 
         return user
-
-    def enroll_pending_courses(self, edxlogin_user):
-        """
-        Enroll the user in the pending courses, removing the enrollments when
-        they are applied.
-        """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
-        registrations = EdxLoginUserCourseRegistration.objects.filter(run=edxlogin_user.run)
-        for item in registrations:
-            if item.auto_enroll:
-                CourseEnrollment.enroll(edxlogin_user.user, item.course, mode=item.mode)
-            else:
-                CourseEnrollmentAllowed.objects.create(course_id=item.course, email=edxlogin_user.user.email, user=edxlogin_user.user)
-        registrations.delete()
     
     def generate_username(self, user_data):
         """
@@ -197,8 +197,11 @@ class EdxLoginCallback(View):
         4. return first_name[0] + "_" first_name[1..N][0..N] + "_" + last_name[1..N][0..N]
         5. return first_name[0] + "_" + last_name[0] + N
         """
-        aux_last_name = user_data['apellidoPaterno'] + user_data['apellidoMaterno']
-        first_name = [unidecode.unidecode(x).replace(' ', '_') for x in user_data['nombres']]
+        aux_last_name = user_data['apellidoPaterno'] + " " +user_data['apellidoMaterno']
+        aux_last_name = aux_last_name.split(" ")
+        aux_first_name= user_data['nombres'].split(" ")
+
+        first_name = [unidecode.unidecode(x).replace(' ', '_') for x in aux_first_name]
         last_name = [unidecode.unidecode(x).replace(' ', '_') for x in aux_last_name]
 
         # 1.
