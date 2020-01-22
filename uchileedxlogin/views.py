@@ -296,8 +296,12 @@ class EdxLoginStaff(View):
         # validacion de los run
         for run in lista_run:
             try:
-                if not self.validarRut(run):
-                    run_malos += run + " - "
+                if run[0] == 'P':
+                    if len(run) > 10:
+                        run_malos += run + " - "
+                else:
+                    if not self.validarRut(run):
+                        run_malos += run + " - "
             except Exception:
                 run_malos += run + " - "
         run_malos = run_malos[:-3]
