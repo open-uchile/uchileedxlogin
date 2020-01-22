@@ -297,7 +297,7 @@ class EdxLoginStaff(View):
         for run in lista_run:
             try:
                 if run[0] == 'P':
-                    if len(run) > 10:
+                    if 5 > len(run[1:]) or len(run[1:]) > 20:
                         run_malos += run + " - "
                 else:
                     if not self.validarRut(run):
@@ -355,7 +355,7 @@ class EdxLoginStaff(View):
         # guarda el form
         for run in lista_run:
             registro = EdxLoginUserCourseRegistration()
-            while len(run) < 10:
+            while len(run) < 10 and 'P' != run[0]:
                 run = "0" + run
             registro.run = run
             registro.course = request.POST.get("course", "")
