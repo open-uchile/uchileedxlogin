@@ -9,6 +9,7 @@ setuptools.setup(
     long_description="Authentication backend for Chile uchileedxlogin",
     url="https://eol.uchile.cl",
     packages=setuptools.find_packages(),
+    install_requires=["unidecode>=1.1.1"],
     classifiers=[
         "Programming Language :: Python :: 2",
         "License :: OSI Approved :: MIT License",
