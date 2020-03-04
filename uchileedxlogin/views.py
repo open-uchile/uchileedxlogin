@@ -110,14 +110,13 @@ class EdxLoginCallback(View):
     def get_user_email(self, rut):
         """
         Get the user email 
-        """
-        parameters = {
-            'rutUsuario': rut
-        }
-        auth = HTTPBasicAuth(settings.EDXLOGIN_CLIENT_ID, settings.EDXLOGIN_CLIENT_SECRET)
-        result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json'}, auth=auth)
+        """        
+        result = requests.get(settings.EDXLOGIN_USER_EMAIL + rut + '/emails', headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
         data = json.loads(result.text)
-        return data['usuarioLdap']['mail']
+        i=0
+        while data['emails'][i]['nombreTipoEmail'] != "PRINCIPAL":
+            i = i + 1
+        return data['emails'][i]['email']
 
     def get_or_create_user(self, user_data):
         """
