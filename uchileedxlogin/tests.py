@@ -87,6 +87,15 @@ class TestCallbackView(TestCase):
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
         self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334', 'email': 'test@test.test'})
 
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)    
+    @patch('requests.get')
+    def test_login_create_user_no_email(self, get, mock_created_user):
+        # Assert requests.get calls
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"})), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "2", "nombreTipoEmail": "ALTERNATIVO", "fechaRegistro": 1331157396000}]}))]
+        
+        result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334', 'email': 'null'})
+
     @patch('requests.get')
     def test_login_wrong_ticket(self, get):
         # Assert requests.get calls

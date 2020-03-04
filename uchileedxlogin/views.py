@@ -114,9 +114,12 @@ class EdxLoginCallback(View):
         result = requests.get(settings.EDXLOGIN_USER_EMAIL + rut + '/emails', headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
         data = json.loads(result.text)
         i=0
-        while data['emails'][i]['nombreTipoEmail'] != "PRINCIPAL":
+        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != "PRINCIPAL":
             i = i + 1
-        return data['emails'][i]['email']
+        if i < len(data['emails']):
+            return data['emails'][i]['email']
+        else:
+            return 'null'
 
     def get_or_create_user(self, user_data):
         """
@@ -159,7 +162,7 @@ class EdxLoginCallback(View):
 
         # Check and remove email if its already registered
         
-        if User.objects.filter(email=user_data['email']).exists():
+        if User.objects.filter(email=user_data['email']).exists() or user_data['email'] == 'null':
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
 
         form = AccountCreationForm(
