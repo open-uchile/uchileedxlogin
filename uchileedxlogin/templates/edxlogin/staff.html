@@ -18,7 +18,7 @@
         <form method="POST">
            <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_token}"/>
             % if context.get('saved', UNDEFINED) == 'saved':
-                <p style="color:rgb(56, 181, 197); margin-bottom: 15px;">Datos Guardados Exitosamente.</p>
+                <p style="color:rgb(56, 181, 197); margin-bottom: 15px;">Datos Guardados Correctamente.</p>
             % endif
             % if context.get('run_malos', UNDEFINED) is not UNDEFINED:
                 <p style="color:firebrick; margin-bottom: 15px;">Estos Runs están incorrectos: ${run_malos}.</p>
