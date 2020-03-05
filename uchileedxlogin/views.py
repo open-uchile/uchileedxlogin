@@ -28,7 +28,7 @@ import csv
 logger = logging.getLogger(__name__)
 
 
-class EdxLoginLoginRedirect(View):   
+class EdxLoginLoginRedirect(View):
 
     def get(self, request):
         if request.user.is_authenticated():
@@ -44,18 +44,19 @@ class EdxLoginLoginRedirect(View):
             'renew': 'true'
         }
         return parameters
-    
+
     @staticmethod
     def get_callback_url(request):
         """
         Get the callback url
         """
-        url = request.build_absolute_uri(reverse('uchileedxlogin-login:callback'))        
+        url = request.build_absolute_uri(reverse('uchileedxlogin-login:callback'))
         return url
 
-class EdxLoginCallback(View): 
+
+class EdxLoginCallback(View):
     USERNAME_MAX_LENGTH = 30
-    
+
     def get(self, request):
         ticket = request.GET.get('ticket')
         if ticket is None:
@@ -67,7 +68,7 @@ class EdxLoginCallback(View):
         try:
             self.login_user(request, username)
         except Exception:
-            logger.exception("Error logging "+ username +" - " + ticket)
+            logger.exception("Error logging " + username + " - " + ticket)
             return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
         return HttpResponseRedirect('/')
 
@@ -81,13 +82,13 @@ class EdxLoginCallback(View):
             r = result.content.split('\n')
             if r[0] == 'yes':
                 return r[1]
-       
+
         return None
 
     def login_user(self, request, username):
         """
         Get or create the user and log him in.
-        """              
+        """
         user_data = self.get_user_data(username)
         user_data['username'] = username
         edxlogin_user = self.get_or_create_user(user_data)
@@ -109,14 +110,14 @@ class EdxLoginCallback(View):
 
     def get_user_email(self, rut):
         """
-        Get the user email 
+        Get the user email
         """
         parameters = {
             'rut': rut
-        }        
+        }
         result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json'})
         data = json.loads(result.text)
-        i=0
+        i = 0
         while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != "PRINCIPAL":
             i = i + 1
         if i < len(data['emails']):
@@ -128,20 +129,20 @@ class EdxLoginCallback(View):
         """
         Get or create the user given the user data.
         If the user exists, update the email address in case the users has updated it.
-        """        
+        """
         try:
-            clave_user = EdxLoginUser.objects.get(run=user_data['rut'])            
+            clave_user = EdxLoginUser.objects.get(run=user_data['rut'])
             return clave_user
         except EdxLoginUser.DoesNotExist:
-            with transaction.atomic():                
+            with transaction.atomic():
                 user_data['email'] = self.get_user_email(user_data['rut'])
                 user = self.create_user_by_data(user_data)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
                     run=user_data['rut']
-                )                                
+                )
             return edxlogin_user
-            
+
     def enroll_pending_courses(self, edxlogin_user):
         """
         Enroll the user in the pending courses, removing the enrollments when
@@ -164,7 +165,7 @@ class EdxLoginCallback(View):
         from student.helpers import do_create_account
 
         # Check and remove email if its already registered
-        
+
         if User.objects.filter(email=user_data['email']).exists() or user_data['email'] == 'null':
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
 
@@ -189,7 +190,7 @@ class EdxLoginCallback(View):
         user.save()
 
         return user
-    
+
     def generate_username(self, user_data):
         """
         Generate an username for the given user_data
@@ -200,9 +201,9 @@ class EdxLoginCallback(View):
         4. return first_name[0] + "_" first_name[1..N][0..N] + "_" + last_name[1..N][0..N]
         5. return first_name[0] + "_" + last_name[0] + N
         """
-        aux_last_name = user_data['apellidoPaterno'] + " " +user_data['apellidoMaterno']
+        aux_last_name = user_data['apellidoPaterno'] + " " + user_data['apellidoMaterno']
         aux_last_name = aux_last_name.split(" ")
-        aux_first_name= user_data['nombres'].split(" ")
+        aux_first_name = user_data['nombres'].split(" ")
 
         first_name = [unidecode.unidecode(x).replace(' ', '_') for x in aux_first_name]
         last_name = [unidecode.unidecode(x).replace(' ', '_') for x in aux_last_name]
@@ -329,10 +330,10 @@ class EdxLoginStaff(View):
         # si el modo es incorrecto
         if not request.POST.get("modes", None) in [x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
             context['error_mode'] = ''
-       
+
         return context
 
-    def get(self, request):        
+    def get(self, request):
         context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
         return render(request, 'edxlogin/staff.html', context)
 
@@ -365,29 +366,28 @@ class EdxLoginStaff(View):
                 edxlogin_user = EdxLoginUser.objects.get(run=run)
                 self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
             except EdxLoginUser.DoesNotExist:
-                with transaction.atomic(): 
-                    registro = EdxLoginUserCourseRegistration()                
+                with transaction.atomic():
+                    registro = EdxLoginUserCourseRegistration()
                     registro.run = run
                     registro.course = request.POST.get("course", "")
                     registro.mode = request.POST.get("modes", None)
                     registro.auto_enroll = enroll
                     registro.save()
-        
-        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved':'saved'}
+
+        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved'}
         return render(request, 'edxlogin/staff.html', context)
-    
+
     def enroll_course(self, edxlogin_user, course, enroll, mode):
         """
         Enroll the user in the pending courses, removing the enrollments when
         they are applied.
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed        
-        
+        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+
         if enroll:
             CourseEnrollment.enroll(edxlogin_user.user, CourseKey.from_string(course), mode=mode)
         else:
             CourseEnrollmentAllowed.objects.create(course_id=CourseKey.from_string(course), email=edxlogin_user.user.email, user=edxlogin_user.user)
-        
 
 
 class EdxLoginExport(View):

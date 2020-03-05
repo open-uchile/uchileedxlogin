@@ -8,5 +8,5 @@ urlpatterns = [
     url('login/', EdxLoginLoginRedirect.as_view(), name='login'),
     url('callback/', EdxLoginCallback.as_view(), name='callback'),
     url('staff/$', staff_member_required(EdxLoginStaff.as_view()), name='staff'),
-    url('staff/export/$', staff_member_required(EdxLoginExport.as_view()), name='export'),    
+    url('staff/export/$', staff_member_required(EdxLoginExport.as_view()), name='export'),
 ]
