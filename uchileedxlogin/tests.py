@@ -13,7 +13,7 @@ import json
 import urlparse
 
 from .views import EdxLoginLoginRedirect, EdxLoginCallback, EdxLoginStaff
-from .models import EdxLoginUserCourseRegistration
+from .models import EdxLoginUserCourseRegistration, EdxLoginUser
 # Create your tests here.
 class TestRedirectView(TestCase):
 
@@ -30,7 +30,7 @@ class TestRedirectView(TestCase):
         args = urlparse.parse_qs(request.query)
 
         self.assertEqual(result.status_code, 302)
-        self.assertEqual(request.netloc, '172.25.14.64:9513')
+        self.assertEqual(request.netloc, '172.25.14.86:9513')
         self.assertEqual(request.path, '/login')        
         self.assertEqual(args['service'][0], 'http://testserver/uchileedxlogin/callback/')
 
@@ -64,11 +64,13 @@ class TestCallbackView(TestCase):
     def tearDown(self):
         self.module_patcher.stop()
 
+    @patch('requests.post')
     @patch('requests.get')
-    def test_login_parameters(self, get):
+    def test_login_parameters(self, get, post):
         # Assert requests.get calls
-        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"})), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL", "fechaRegistro": 1331157396000}]}))]
-        
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
+
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
         self.assertEqual(result.status_code, 302)
 
@@ -76,40 +78,48 @@ class TestCallbackView(TestCase):
         self.assertEqual(get.call_args_list[0][0][0], settings.EDXLOGIN_RESULT_VALIDATE)
         self.assertEqual(username['username'][0], 'test.name')
         self.assertEqual(get.call_args_list[1][0][0], settings.EDXLOGIN_USER_INFO_URL)
-        self.assertEqual(get.call_args_list[2][0][0], settings.EDXLOGIN_USER_EMAIL + "0112223334" + '/emails')
+        self.assertEqual(post.call_args_list[0][0][0], settings.EDXLOGIN_USER_EMAIL)
     
-    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)    
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
+    @patch('requests.post')    
     @patch('requests.get')
-    def test_login_create_user(self, get, mock_created_user):
+    def test_login_create_user(self, get, post, mock_created_user):
         # Assert requests.get calls
-        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"})), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL", "fechaRegistro": 1331157396000}]}))]
-        
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
+
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
         self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334', 'email': 'test@test.test'})
 
     @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)    
+    @patch('requests.post')    
     @patch('requests.get')
-    def test_login_create_user_no_email(self, get, mock_created_user):
+    def test_login_create_user_no_email(self, get, post, mock_created_user):
         # Assert requests.get calls
-        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"})), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "2", "nombreTipoEmail": "ALTERNATIVO", "fechaRegistro": 1331157396000}]}))]
-        
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "ALTERNATIVO"}]}))]
+
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
         self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334', 'email': 'null'})
 
+    @patch('requests.post')
     @patch('requests.get')
-    def test_login_wrong_ticket(self, get):
+    def test_login_wrong_ticket(self, get, post):
         # Assert requests.get calls
-        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'no\n\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"})), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL", "fechaRegistro": 1331157396000}]}))]
-        
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'no\n\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST NAME","nombreCompleto":"TEST NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
+
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'wrongticket'})
         request = urlparse.urlparse(result.url)
         self.assertEqual(request.path, '/uchileedxlogin/login/')
-   
+    
+    @patch('requests.post')
     @patch('requests.get')
-    def test_login_wrong_username(self, get):
+    def test_login_wrong_username(self, get, post):
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\nwrongname\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({}))]
-        
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
+
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
         request = urlparse.urlparse(result.url)
         self.assertEqual(request.path, '/uchileedxlogin/login/')
@@ -164,9 +174,10 @@ class TestCallbackView(TestCase):
         }
         self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'a234567890123456789012341')
     
-    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)   
+    @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)  
+    @patch("requests.post") 
     @patch('requests.get')
-    def test_test(self, get, _):
+    def test_test(self, get, post, _):
         EdxLoginUserCourseRegistration.objects.create(
             run='0112223334',           
             course="course-v1:test+TEST+2019-2",
@@ -178,7 +189,8 @@ class TestCallbackView(TestCase):
             mode="honor",
             auto_enroll=False)
         
-        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"})), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL", "fechaRegistro": 1331157396000}]}))]
+        get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno":"TESTLASTNAME","apellidoMaterno":"TESTLASTNAME","nombres":"TEST.NAME","nombreCompleto":"TEST.NAME TESTLASTNAME TESTLASTNAME","rut":"0112223334"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails":[{"rut":"0112223334", "email":"test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
         result = self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
     
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
@@ -197,8 +209,16 @@ class TestStaffView(TestCase):
         user.is_staff = True
         user.save()
         self.client.login(username='testuser', password='12345')
-
+        EdxLoginUser.objects.create(user=user,run='009472337K') 
         result = self.client.get(reverse('uchileedxlogin-login:staff'))
+        self.modules = {
+            'student': MagicMock(),
+            'student.forms': MagicMock(),
+            'student.helpers': MagicMock(),
+            'student.models': MagicMock(),
+        }
+        self.module_patcher = patch.dict('sys.modules', self.modules)
+        self.module_patcher.start()
 
     def test_staff_get(self):
 
@@ -286,3 +306,36 @@ class TestStaffView(TestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEqual(response.context['run_malos'], '123456789')
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
+    def test_staff_post_exits_user_enroll(self, _):
+        post_data = {
+            'runs': '9472337-k',
+            'course': 'course-v1:mss+MSS001+2019_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)          
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(len(self.modules['student.models'].CourseEnrollment.method_calls), 1)
+        self.assertEqual(self.modules['student.models'].CourseEnrollment.method_calls[0][1][1], CourseLocator.from_string("course-v1:mss+MSS001+2019_2"))
+
+        self.assertEqual(len(self.modules['student.models'].CourseEnrollmentAllowed.mock_calls), 0)
+        
+    
+    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
+    def test_staff_post_exits_user_no_enroll(self, _):
+        post_data = {
+            'runs': '9472337-k',
+            'course': 'course-v1:mss+MSS001+2019_2',
+            'modes': 'audit'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)          
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(len(self.modules['student.models'].CourseEnrollment.method_calls), 0)
+        _, _, kwargs = self.modules['student.models'].CourseEnrollmentAllowed.mock_calls[0]
+        self.assertEqual(kwargs['course_id'], CourseLocator.from_string("course-v1:mss+MSS001+2019_2"))

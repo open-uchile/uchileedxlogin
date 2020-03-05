@@ -110,8 +110,11 @@ class EdxLoginCallback(View):
     def get_user_email(self, rut):
         """
         Get the user email 
-        """        
-        result = requests.get(settings.EDXLOGIN_USER_EMAIL + rut + '/emails', headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
+        """
+        parameters = {
+            'rut': rut
+        }        
+        result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json'})
         data = json.loads(result.text)
         i=0
         while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != "PRINCIPAL":
@@ -329,7 +332,7 @@ class EdxLoginStaff(View):
        
         return context
 
-    def get(self, request):
+    def get(self, request):        
         context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
         return render(request, 'edxlogin/staff.html', context)
 
@@ -356,16 +359,35 @@ class EdxLoginStaff(View):
 
         # guarda el form
         for run in lista_run:
-            registro = EdxLoginUserCourseRegistration()
             while len(run) < 10 and 'P' != run[0]:
                 run = "0" + run
-            registro.run = run
-            registro.course = request.POST.get("course", "")
-            registro.mode = request.POST.get("modes", None)
-            registro.auto_enroll = enroll
-            registro.save()
-
-        return render(request, 'edxlogin/staff.html', context=None)
+            try:
+                edxlogin_user = EdxLoginUser.objects.get(run=run)
+                self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+            except EdxLoginUser.DoesNotExist:
+                with transaction.atomic(): 
+                    registro = EdxLoginUserCourseRegistration()                
+                    registro.run = run
+                    registro.course = request.POST.get("course", "")
+                    registro.mode = request.POST.get("modes", None)
+                    registro.auto_enroll = enroll
+                    registro.save()
+        
+        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved':'saved'}
+        return render(request, 'edxlogin/staff.html', context)
+    
+    def enroll_course(self, edxlogin_user, course, enroll, mode):
+        """
+        Enroll the user in the pending courses, removing the enrollments when
+        they are applied.
+        """
+        from student.models import CourseEnrollment, CourseEnrollmentAllowed        
+        
+        if enroll:
+            CourseEnrollment.enroll(edxlogin_user.user, CourseKey.from_string(course), mode=mode)
+        else:
+            CourseEnrollmentAllowed.objects.create(course_id=CourseKey.from_string(course), email=edxlogin_user.user.email, user=edxlogin_user.user)
+        
 
 
 class EdxLoginExport(View):
