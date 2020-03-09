@@ -359,20 +359,20 @@ class EdxLoginStaff(View):
             return render(request, 'edxlogin/staff.html', context)
 
         # guarda el form
-        for run in lista_run:
-            while len(run) < 10 and 'P' != run[0]:
-                run = "0" + run
-            try:
-                edxlogin_user = EdxLoginUser.objects.get(run=run)
-                self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
-            except EdxLoginUser.DoesNotExist:
-                with transaction.atomic():
-                    registro = EdxLoginUserCourseRegistration()
-                    registro.run = run
-                    registro.course = request.POST.get("course", "")
-                    registro.mode = request.POST.get("modes", None)
-                    registro.auto_enroll = enroll
-                    registro.save()
+        with transaction.atomic():
+            for run in lista_run:
+                while len(run) < 10 and 'P' != run[0]:
+                    run = "0" + run
+                try:
+                    edxlogin_user = EdxLoginUser.objects.get(run=run)
+                    self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                except EdxLoginUser.DoesNotExist:                    
+                        registro = EdxLoginUserCourseRegistration()
+                        registro.run = run
+                        registro.course = request.POST.get("course", "")
+                        registro.mode = request.POST.get("modes", None)
+                        registro.auto_enroll = enroll
+                        registro.save()
 
         context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved'}
         return render(request, 'edxlogin/staff.html', context)
