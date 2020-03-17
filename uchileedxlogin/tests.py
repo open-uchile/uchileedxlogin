@@ -164,6 +164,10 @@ class TestCallbackView(TestCase):
 
         self.assertEqual(EdxLoginCallback().create_user_by_data(data).username, 'a2345678901234567890123_41')
 
+    def test_null_lastname(self):
+        user_data = {"nombres": "Name", "apellidoPaterno": None, "apellidoMaterno": None}
+        self.assertEqual(EdxLoginCallback().generate_username(user_data, "Name")
+
     @patch("uchileedxlogin.views.EdxLoginCallback.create_user_by_data", side_effect=create_user)
     def test_long_name_middle(self, _):
         data = {
