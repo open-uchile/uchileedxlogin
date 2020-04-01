@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -- coding: utf-8 --
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth import login
@@ -22,8 +25,8 @@ import uuid
 import unidecode
 import logging
 import sys
-import csv
-
+import unicodecsv as csv
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -117,13 +120,27 @@ class EdxLoginCallback(View):
         }
         result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json'})
         data = json.loads(result.text)
+        return self.verify_email_principal(data)
+
+    def verify_email_principal(self, data):
         i = 0
-        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != "PRINCIPAL":
+        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != 'PRINCIPAL':
             i = i + 1
-        if i < len(data['emails']):
+
+        if i < len(data['emails']) and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
             return data['emails'][i]['email']
-        else:
-            return 'null'
+
+        return self.verify_email_alternativo(data)
+
+    def verify_email_alternativo(self, data):
+        i = 0
+        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != 'ALTERNATIVO':
+            i = i + 1
+
+        if i < len(data['emails']) and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
+            return data['emails'][i]['email']
+
+        return 'null'
 
     def get_or_create_user(self, user_data):
         """
@@ -367,13 +384,13 @@ class EdxLoginStaff(View):
                 try:
                     edxlogin_user = EdxLoginUser.objects.get(run=run)
                     self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
-                except EdxLoginUser.DoesNotExist:                    
-                        registro = EdxLoginUserCourseRegistration()
-                        registro.run = run
-                        registro.course = request.POST.get("course", "")
-                        registro.mode = request.POST.get("modes", None)
-                        registro.auto_enroll = enroll
-                        registro.save()
+                except EdxLoginUser.DoesNotExist:
+                    registro = EdxLoginUserCourseRegistration()
+                    registro.run = run
+                    registro.course = request.POST.get("course", "")
+                    registro.mode = request.POST.get("modes", None)
+                    registro.auto_enroll = enroll
+                    registro.save()
 
         context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved'}
         return render(request, 'edxlogin/staff.html', context)
@@ -403,7 +420,7 @@ class EdxLoginExport(View):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="users.csv"'
 
-        writer = csv.writer(response, delimiter=';', dialect='excel')
+        writer = csv.writer(response, delimiter=';', dialect='excel', encoding='utf-8')
         data.append([])
         data[0].extend(['Run', 'Username', 'Email'])
         i = 1
