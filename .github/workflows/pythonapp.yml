@@ -9,13 +9,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python 2.7
-      uses: actions/setup-python@v1
-      with:
-        python-version: 2.7
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Test with pytest
-      run: python manage.py test
+    - name: Run Tests
+      run: |        
+        cd .github/
+        docker-compose run lms /openedx/requirements/uchileedxlogin/.github/test.sh

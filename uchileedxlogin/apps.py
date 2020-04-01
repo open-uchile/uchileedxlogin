@@ -7,7 +7,7 @@ from openedx.core.djangoapps.plugins.constants import (
 )
 
 
-class EdxloginConfig(AppConfig):
+class UchileEdxloginConfig(AppConfig):
     name = 'uchileedxlogin'
     plugin_app = {
         PluginURLs.CONFIG: {
