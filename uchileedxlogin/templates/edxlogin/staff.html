@@ -21,13 +21,13 @@
                 <p style="color:rgb(56, 181, 197); margin-bottom: 15px;">Datos Guardados Correctamente.</p>
             % endif
             % if context.get('run_malos', UNDEFINED) is not UNDEFINED:
-                <p style="color:firebrick; margin-bottom: 15px;">Estos Runs están incorrectos: ${run_malos}.</p>
+                <p id="run_malos" style="color:firebrick; margin-bottom: 15px;">Estos Runs están incorrectos: ${run_malos}.</p>
             % endif
             % if context.get('no_run', UNDEFINED) is not UNDEFINED:
-                <p style="color:firebrick; margin-bottom: 15px;">Falta agregar run.</p>
+                <p id="no_run" style="color:firebrick; margin-bottom: 15px;">Falta agregar run.</p>
             % endif            
             % if context.get('curso2', UNDEFINED) is not UNDEFINED:
-                <p style="color:firebrick; margin-bottom: 15px;">Falta agregar curso.</p>
+                <p id="curso2" style="color:firebrick; margin-bottom: 15px;">Falta agregar curso.</p>
             % endif
             % if context.get('error_curso', UNDEFINED) is not UNDEFINED:
                 <p style="color:firebrick; margin-bottom: 15px;">Curso no existe.</p>
