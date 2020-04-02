@@ -120,14 +120,16 @@ class EdxLoginCallback(View):
         }
         result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json'})
         data = json.loads(result.text)
-        return self.verify_email_principal(data)
+        if 'emails' in data:
+            return self.verify_email_principal(data)
+        return'null'
 
     def verify_email_principal(self, data):
         i = 0
         while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != 'PRINCIPAL':
             i = i + 1
 
-        if i < len(data['emails']) and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
+        if i < len(data['emails']) and data['emails'][i]['email'] is not None and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
             if not User.objects.filter(email=data['emails'][i]['email']).exists():
                 return data['emails'][i]['email']
 
@@ -135,10 +137,10 @@ class EdxLoginCallback(View):
 
     def verify_email_alternativo(self, data):
         i = 0
-        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != 'ALTERNATIVO':
+        while i < len(data['emails']) and  data['emails'][i]['nombreTipoEmail'] != 'ALTERNATIVO':
             i = i + 1
 
-        if i < len(data['emails']) and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
+        if i < len(data['emails']) and data['emails'][i]['email'] is not None and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
             if not User.objects.filter(email=data['emails'][i]['email']).exists():
                 return data['emails'][i]['email']
 
