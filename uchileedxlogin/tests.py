@@ -259,6 +259,7 @@ class TestStaffView(TestCase):
     def test_staff_get(self):
 
         response = self.client.get(reverse('uchileedxlogin-login:staff'))
+        request = response.request
         self.assertEquals(response.status_code, 200)
         self.assertEqual(request['PATH_INFO'], '/claveunica/staff/')
 

@@ -128,7 +128,8 @@ class EdxLoginCallback(View):
             i = i + 1
 
         if i < len(data['emails']) and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
-            return data['emails'][i]['email']
+            if not User.objects.filter(email=data['emails'][i]['email']).exists():
+                return data['emails'][i]['email']
 
         return self.verify_email_alternativo(data)
 
@@ -138,7 +139,8 @@ class EdxLoginCallback(View):
             i = i + 1
 
         if i < len(data['emails']) and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
-            return data['emails'][i]['email']
+            if not User.objects.filter(email=data['emails'][i]['email']).exists():
+                return data['emails'][i]['email']
 
         return 'null'
 
@@ -183,7 +185,7 @@ class EdxLoginCallback(View):
 
         # Check and remove email if its already registered
 
-        if User.objects.filter(email=user_data['email']).exists() or user_data['email'] == 'null':
+        if user_data['email'] == 'null':
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
 
         form = AccountCreationForm(
