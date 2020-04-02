@@ -261,7 +261,7 @@ class TestStaffView(TestCase):
         response = self.client.get(reverse('uchileedxlogin-login:staff'))
         request = response.request
         self.assertEquals(response.status_code, 200)
-        self.assertEqual(request['PATH_INFO'], '/claveunica/staff/')
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
 
     @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
     def test_staff_post(self, _):
