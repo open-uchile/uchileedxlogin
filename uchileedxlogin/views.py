@@ -31,73 +31,7 @@ import re
 logger = logging.getLogger(__name__)
 
 
-class EdxLoginLoginRedirect(View):
-
-    def get(self, request):
-        if request.user.is_authenticated():
-            return HttpResponseRedirect('/')
-        return HttpResponseRedirect('{}?{}'.format(settings.EDXLOGIN_REQUEST_URL, urlencode(self.service_parameters(request))))
-
-    def service_parameters(self, request):
-        """
-        store the service parameter for uchileedxlogin.
-        """
-        parameters = {
-            'service': EdxLoginLoginRedirect.get_callback_url(request),
-            'renew': 'true'
-        }
-        return parameters
-
-    @staticmethod
-    def get_callback_url(request):
-        """
-        Get the callback url
-        """
-        url = request.build_absolute_uri(reverse('uchileedxlogin-login:callback'))
-        return url
-
-
-class EdxLoginCallback(View):
-    USERNAME_MAX_LENGTH = 30
-
-    def get(self, request):
-        ticket = request.GET.get('ticket')
-        if ticket is None:
-            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
-
-        username = self.verify_state(request, ticket)
-        if username is None:
-            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
-        try:
-            self.login_user(request, username)
-        except Exception:
-            logger.exception("Error logging " + username + " - " + ticket)
-            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
-        return HttpResponseRedirect('/')
-
-    def verify_state(self, request, ticket):
-        """
-            Verify if the ticket is correct
-        """
-        parameters = {'service': EdxLoginLoginRedirect.get_callback_url(request), 'ticket': ticket, 'renew': 'true'}
-        result = requests.get(settings.EDXLOGIN_RESULT_VALIDATE, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
-        if result.status_code == 200:
-            r = result.content.split('\n')
-            if r[0] == 'yes':
-                return r[1]
-
-        return None
-
-    def login_user(self, request, username):
-        """
-        Get or create the user and log him in.
-        """
-        user_data = self.get_user_data(username)
-        user_data['username'] = username
-        edxlogin_user = self.get_or_create_user(user_data)
-        self.enroll_pending_courses(edxlogin_user)
-        login(request, edxlogin_user.user, backend="django.contrib.auth.backends.AllowAllUsersModelBackend",)
-
+class Content(object):
     def get_user_data(self, username):
         """
         Get the user data
@@ -137,7 +71,7 @@ class EdxLoginCallback(View):
 
     def verify_email_alternativo(self, data):
         i = 0
-        while i < len(data['emails']) and  data['emails'][i]['nombreTipoEmail'] != 'ALTERNATIVO':
+        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != 'ALTERNATIVO':
             i = i + 1
 
         if i < len(data['emails']) and data['emails'][i]['email'] is not None and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
@@ -164,20 +98,6 @@ class EdxLoginCallback(View):
                 )
             return edxlogin_user
 
-    def enroll_pending_courses(self, edxlogin_user):
-        """
-        Enroll the user in the pending courses, removing the enrollments when
-        they are applied.
-        """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
-        registrations = EdxLoginUserCourseRegistration.objects.filter(run=edxlogin_user.run)
-        for item in registrations:
-            if item.auto_enroll:
-                CourseEnrollment.enroll(edxlogin_user.user, item.course, mode=item.mode)
-            else:
-                CourseEnrollmentAllowed.objects.create(course_id=item.course, email=edxlogin_user.user.email, user=edxlogin_user.user)
-        registrations.delete()
-
     def create_user_by_data(self, user_data):
         """
         Create the user by the Django model
@@ -198,7 +118,7 @@ class EdxLoginCallback(View):
                 "name": user_data['nombreCompleto'],
             },
             tos_required=False,
-            ignore_email_blacklist=True
+            # ignore_email_blacklist=True
         )
 
         user, _, reg = do_create_account(form)
@@ -290,7 +210,89 @@ class EdxLoginCallback(View):
         raise Exception("Error generating username for name {}".format())
 
 
-class EdxLoginStaff(View):
+class EdxLoginLoginRedirect(View):
+
+    def get(self, request):
+        if request.user.is_authenticated():
+            return HttpResponseRedirect('/')
+        return HttpResponseRedirect('{}?{}'.format(settings.EDXLOGIN_REQUEST_URL, urlencode(self.service_parameters(request))))
+
+    def service_parameters(self, request):
+        """
+        store the service parameter for uchileedxlogin.
+        """
+        parameters = {
+            'service': EdxLoginLoginRedirect.get_callback_url(request),
+            'renew': 'true'
+        }
+        return parameters
+
+    @staticmethod
+    def get_callback_url(request):
+        """
+        Get the callback url
+        """
+        url = request.build_absolute_uri(reverse('uchileedxlogin-login:callback'))
+        return url
+
+
+class EdxLoginCallback(View, Content):
+    USERNAME_MAX_LENGTH = 30
+
+    def get(self, request):
+        ticket = request.GET.get('ticket')
+        if ticket is None:
+            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
+
+        username = self.verify_state(request, ticket)
+        if username is None:
+            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
+        try:
+            self.login_user(request, username)
+        except Exception:
+            logger.exception("Error logging " + username + " - " + ticket)
+            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
+        return HttpResponseRedirect('/')
+
+    def verify_state(self, request, ticket):
+        """
+            Verify if the ticket is correct
+        """
+        parameters = {'service': EdxLoginLoginRedirect.get_callback_url(request), 'ticket': ticket, 'renew': 'true'}
+        result = requests.get(settings.EDXLOGIN_RESULT_VALIDATE, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
+        if result.status_code == 200:
+            r = result.content.split('\n')
+            if r[0] == 'yes':
+                return r[1]
+
+        return None
+
+    def login_user(self, request, username):
+        """
+        Get or create the user and log him in.
+        """
+        user_data = self.get_user_data(username)
+        user_data['username'] = username
+        edxlogin_user = self.get_or_create_user(user_data)
+        self.enroll_pending_courses(edxlogin_user)
+        login(request, edxlogin_user.user, backend="django.contrib.auth.backends.AllowAllUsersModelBackend",)
+
+    def enroll_pending_courses(self, edxlogin_user):
+        """
+        Enroll the user in the pending courses, removing the enrollments when
+        they are applied.
+        """
+        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        registrations = EdxLoginUserCourseRegistration.objects.filter(run=edxlogin_user.run)
+        for item in registrations:
+            if item.auto_enroll:
+                CourseEnrollment.enroll(edxlogin_user.user, item.course, mode=item.mode)
+            else:
+                CourseEnrollmentAllowed.objects.create(course_id=item.course, email=edxlogin_user.user.email, user=edxlogin_user.user)
+        registrations.delete()
+
+
+class EdxLoginStaff(View, Content):
     def validarRut(self, rut):
         rut = rut.upper()
         rut = rut.replace("-", "")
@@ -319,7 +321,7 @@ class EdxLoginStaff(View):
         except InvalidKeyError:
             return False
 
-    def validate_data(self, request, lista_run, context):
+    def validate_data(self, request, lista_run, context, force):
         run_malos = ""
         # validacion de los run
         for run in lista_run:
@@ -330,8 +332,10 @@ class EdxLoginStaff(View):
                 else:
                     if not self.validarRut(run):
                         run_malos += run + " - "
+
             except Exception:
                 run_malos += run + " - "
+
         run_malos = run_malos[:-3]
 
         # validaciones de otros campos
@@ -373,13 +377,22 @@ class EdxLoginStaff(View):
         if request.POST.getlist("enroll"):
             enroll = True
 
+        # verifica si el checkbox de forzar creacion de usuario fue seleccionado
+        force = False
+        if request.POST.getlist("force"):
+            force = True
+
         context = {'runs': request.POST.get('runs'), 'curso': request.POST.get("course", ""), 'auto_enroll': enroll, 'modo': request.POST.get("modes", None)}
         # validacion de datos
-        context = self.validate_data(request, lista_run, context)
+        context = self.validate_data(request, lista_run, context, force)
         # retorna si hubo al menos un error
         if len(context) > 4:
             return render(request, 'edxlogin/staff.html', context)
-
+        run_saved_force = ""
+        run_saved_force_no_auto = ""
+        run_saved_pending = ""
+        run_saved_enroll = ""
+        run_saved_enroll_no_auto = ""
         # guarda el form
         with transaction.atomic():
             for run in lista_run:
@@ -388,15 +401,36 @@ class EdxLoginStaff(View):
                 try:
                     edxlogin_user = EdxLoginUser.objects.get(run=run)
                     self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                    if enroll:
+                        run_saved_enroll += run + " - "
+                    else:
+                        run_saved_enroll_no_auto += run + " - "
                 except EdxLoginUser.DoesNotExist:
-                    registro = EdxLoginUserCourseRegistration()
-                    registro.run = run
-                    registro.course = request.POST.get("course", "")
-                    registro.mode = request.POST.get("modes", None)
-                    registro.auto_enroll = enroll
-                    registro.save()
-
-        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved'}
+                    edxlogin_user = None
+                    if force:
+                        edxlogin_user = self.force_create_user(run)
+                    if edxlogin_user:
+                        self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                        if enroll:
+                            run_saved_force += run + " - "
+                        else:
+                            run_saved_force_no_auto += run + " - "
+                    else:
+                        registro = EdxLoginUserCourseRegistration()
+                        registro.run = run
+                        registro.course = request.POST.get("course", "")
+                        registro.mode = request.POST.get("modes", None)
+                        registro.auto_enroll = enroll
+                        registro.save()
+                        run_saved_pending += run + " - "
+        run_saved = {
+            'run_saved_force': run_saved_force[:-3],
+            'run_saved_pending': run_saved_pending[:-3],
+            'run_saved_enroll': run_saved_enroll[:-3],
+            'run_saved_enroll_no_auto': run_saved_enroll_no_auto[:-3],
+            'run_saved_force_no_auto': run_saved_force_no_auto[:-3]
+        }
+        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved', 'run_saved': run_saved}
         return render(request, 'edxlogin/staff.html', context)
 
     def enroll_course(self, edxlogin_user, course, enroll, mode):
@@ -410,6 +444,40 @@ class EdxLoginStaff(View):
             CourseEnrollment.enroll(edxlogin_user.user, CourseKey.from_string(course), mode=mode)
         else:
             CourseEnrollmentAllowed.objects.create(course_id=CourseKey.from_string(course), email=edxlogin_user.user.email, user=edxlogin_user.user)
+
+    def force_create_user(self, run):
+        try:
+            username = self.get_username(run)
+            user_data = self.get_user_data(username)
+            user_data['username'] = username
+            edxlogin_user = self.get_or_create_user(user_data)
+            return edxlogin_user
+        except Exception:
+            return None
+
+    def get_username(self, run):
+        """
+        Get username
+        """
+
+        parameters = {
+            'rutUsuario': run
+        }
+        result = requests.post(settings.EDXLOGIN_USERNAME, data=json.dumps(parameters), headers={'content-type': 'application/json'})
+        if result.status_code != 200:
+            logger.error("{} {}".format(result.request, result.request.headers))
+            raise Exception("Wrong run {} {}".format(result.status_code, run))
+
+        data = json.loads(result.text)
+        username = ""
+        if "cuentascorp" in data and len(data["cuentascorp"]) > 0:
+            i = 0
+            email = data["cuentascorp"]
+            while i < len(email) and email[i]["tipoCuenta"] != "CUENTA PASAPORTE":
+                i += 1
+            if i < len(email):
+                username = email[i]["cuentaCorp"] or ""
+        return username
 
 
 class EdxLoginExport(View):
