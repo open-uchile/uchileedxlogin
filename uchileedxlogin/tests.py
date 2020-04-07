@@ -58,6 +58,12 @@ def create_user(user_data):
         email=user_data['email'])
 
 
+def create_user2(user_data):
+    return User.objects.create_user(
+        username=EdxLoginStaff().generate_username(user_data),
+        email=user_data['email'])
+
+
 class TestCallbackView(TestCase):
     def setUp(self):
         self.client = Client()
@@ -398,9 +404,10 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
         assert_true("id=\"run_saved_enroll_no_auto\"" in response._container[0])
 
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_enroll(self, get, post):
+    def test_staff_post_force_enroll(self, get, post, mock_created_user):
         post_data = {
             'runs': '10-8',
             'course': self.course.id,
@@ -424,14 +431,17 @@ class TestStaffView(ModuleStoreTestCase):
         request = response.request
 
         self.assertEquals(response.status_code, 200)
+
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
         assert_true("id=\"run_saved_force\"" in response._container[0])
         assert_true("id=\"run_saved_enroll\"" not in response._container[0])
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'avilio.perez', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0000000108', 'email': 'test@test.test'})
 
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_no_enroll(self, get, post):
+    def test_staff_post_force_no_enroll(self, get, post, mock_created_user):
         post_data = {
             'runs': '10-8',
             'course': self.course.id,
@@ -459,10 +469,12 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
         assert_true("id=\"run_saved_force_no_auto\"" in response._container[0])
         assert_true("id=\"run_saved_enroll_no_auto\"" not in response._container[0])
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'avilio.perez', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0000000108', 'email': 'test@test.test'})
 
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_no_user(self, get, post):
+    def test_staff_post_force_no_user(self, get, post, mock_created_user):
         post_data = {
             'runs': '10-8',
             'course': self.course.id,

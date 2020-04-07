@@ -118,7 +118,7 @@ class Content(object):
                 "name": user_data['nombreCompleto'],
             },
             tos_required=False,
-            # ignore_email_blacklist=True
+            ignore_email_blacklist=True
         )
 
         user, _, reg = do_create_account(form)
