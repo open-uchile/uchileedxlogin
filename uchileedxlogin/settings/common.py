@@ -5,3 +5,4 @@ def plugin_settings(settings):
     settings.EDXLOGIN_USER_INFO_URL = edxlogin_host + ':8181/cxf/por-atributos-usuario/usuario'
     settings.EDXLOGIN_USER_EMAIL = edxlogin_host + ':7945/listEmails'
     settings.EDXLOGIN_REQUEST_URL = edxlogin_host + ':9513/login'
+    settings.EDXLOGIN_USERNAME = edxlogin_host + ':7913/getCuentasCorp'

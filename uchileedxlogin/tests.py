@@ -10,6 +10,12 @@ from django.contrib.auth.models import User
 from urlparse import parse_qs
 from openedx.core.lib.tests.tools import assert_true
 from opaque_keys.edx.locator import CourseLocator
+from student.tests.factories import CourseEnrollmentAllowedFactory, UserFactory, CourseEnrollmentFactory
+from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
+from xmodule.modulestore import ModuleStoreEnum
+from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+
 import re
 import json
 import urlparse
@@ -49,6 +55,12 @@ class TestRedirectView(TestCase):
 def create_user(user_data):
     return User.objects.create_user(
         username=EdxLoginCallback().generate_username(user_data),
+        email=user_data['email'])
+
+
+def create_user2(user_data):
+    return User.objects.create_user(
+        username=EdxLoginStaff().generate_username(user_data),
         email=user_data['email'])
 
 
@@ -136,7 +148,7 @@ class TestCallbackView(TestCase):
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request", ["status_code", "content"])(200, 'yes\ntest.name\n'), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno": "TESTLASTNAME", "apellidoMaterno": "TESTLASTNAME", "nombres": "TEST NAME", "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME", "rut": "0112223334"}))]
         post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails": [{"rut": "0112223334", "email": "sin@correo", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}, {"rut": "0112223334", "email": "test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "ALTERNATIVO"}]}))]
-        
+
         self.client.get(reverse('uchileedxlogin-login:callback'), data={'ticket': 'testticket'})
         self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'test.name', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0112223334', 'email': 'test@test.test'})
 
@@ -266,28 +278,19 @@ class TestCallbackView(TestCase):
         self.assertEqual(kwargs['course_id'], CourseLocator.from_string("course-v1:test+TEST+2019-4"))
 
 
-def always_true(x):
-    return True
-
-
-class TestStaffView(TestCase):
+class TestStaffView(ModuleStoreTestCase):
 
     def setUp(self):
-        self.client = Client()
-        user = User.objects.create_user(username='testuser', password='12345')
-        user.is_staff = True
-        user.save()
-        self.client.login(username='testuser', password='12345')
+        super(TestStaffView, self).setUp()
+        self.course = CourseFactory.create(org='mss', course='999', display_name='2020', emit_signals=True)
+        aux = CourseOverview.get_from_id(self.course.id)
+        with patch('student.models.cc.User.save'):
+            self.client = Client()
+            user = UserFactory(username='testuser3', password='12345', email='student2@edx.org', is_staff=True)
+            self.client.login(username='testuser3', password='12345')
+
         EdxLoginUser.objects.create(user=user, run='009472337K')
         result = self.client.get(reverse('uchileedxlogin-login:staff'))
-        self.modules = {
-            'student': MagicMock(),
-            'student.forms': MagicMock(),
-            'student.helpers': MagicMock(),
-            'student.models': MagicMock(),
-        }
-        self.module_patcher = patch.dict('sys.modules', self.modules)
-        self.module_patcher.start()
 
     def test_staff_get(self):
 
@@ -296,11 +299,10 @@ class TestStaffView(TestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
 
-    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
-    def test_staff_post(self, _):
+    def test_staff_post(self):
         post_data = {
             'runs': '10-8',
-            'course': 'course-v1:mss+MSS001+2019_2',
+            'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
@@ -315,11 +317,10 @@ class TestStaffView(TestCase):
         self.assertEqual(aux.auto_enroll, True)
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
 
-    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
-    def test_staff_post_multiple_run(self, _):
+    def test_staff_post_multiple_run(self):
         post_data = {
             'runs': '10-8\n10-8\n10-8\n10-8\n10-8',
-            'course': 'course-v1:mss+MSS001+2019_2',
+            'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
@@ -335,8 +336,7 @@ class TestStaffView(TestCase):
 
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 5)
 
-    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
-    def test_staff_post_sin_curso(self, _):
+    def test_staff_post_sin_curso(self):
         post_data = {
             'runs': '10-8',
             'course': '',
@@ -345,15 +345,14 @@ class TestStaffView(TestCase):
         }
 
         response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)        
+        self.assertEquals(response.status_code, 200)
         assert_true("id=\"curso2\"" in response._container[0])
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
-    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
-    def test_staff_post_sin_run(self, _):
+    def test_staff_post_sin_run(self):
         post_data = {
             'runs': '',
-            'course': 'course-v1:mss+MSS001+2019_2',
+            'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
@@ -363,11 +362,10 @@ class TestStaffView(TestCase):
         assert_true("id=\"no_run\"" in response._container[0])
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
-    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
-    def test_staff_post_run_malo(self, _):
+    def test_staff_post_run_malo(self):
         post_data = {
             'runs': '12345678-9',
-            'course': 'course-v1:mss+MSS001+2019_2',
+            'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
@@ -377,34 +375,133 @@ class TestStaffView(TestCase):
         assert_true("id=\"run_malos\"" in response._container[0])
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
-    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
-    def test_staff_post_exits_user_enroll(self, _):
+    def test_staff_post_exits_user_enroll(self):
         post_data = {
             'runs': '9472337-k',
-            'course': 'course-v1:mss+MSS001+2019_2',
+            'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
 
         response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
         self.assertEquals(response.status_code, 200)
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
-        self.assertEqual(len(self.modules['student.models'].CourseEnrollment.method_calls), 1)
-        self.assertEqual(self.modules['student.models'].CourseEnrollment.method_calls[0][1][1], CourseLocator.from_string("course-v1:mss+MSS001+2019_2"))
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        assert_true("id=\"run_saved_enroll\"" in response._container[0])
 
-        self.assertEqual(len(self.modules['student.models'].CourseEnrollmentAllowed.mock_calls), 0)
-
-    @patch("uchileedxlogin.views.EdxLoginStaff.validate_course", side_effect=always_true)
-    def test_staff_post_exits_user_no_enroll(self, _):
+    def test_staff_post_exits_user_no_enroll(self):
         post_data = {
             'runs': '9472337-k',
-            'course': 'course-v1:mss+MSS001+2019_2',
+            'course': self.course.id,
             'modes': 'audit'
         }
 
         response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
         self.assertEquals(response.status_code, 200)
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
-        self.assertEqual(len(self.modules['student.models'].CourseEnrollment.method_calls), 0)
-        _, _, kwargs = self.modules['student.models'].CourseEnrollmentAllowed.mock_calls[0]
-        self.assertEqual(kwargs['course_id'], CourseLocator.from_string("course-v1:mss+MSS001+2019_2"))
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        assert_true("id=\"run_saved_enroll_no_auto\"" in response._container[0])
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_staff_post_force_enroll(self, get, post, mock_created_user):
+        post_data = {
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+        data = {"cuentascorp":
+                [
+                    {"cuentaCorp": "avilio.perez@ug.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "ug.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@u.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "u.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez", "tipoCuenta": "CUENTA PASAPORTE", "organismoDominio": "Universidad de Chile"}
+                ]
+                }
+
+        get.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno": "TESTLASTNAME", "apellidoMaterno": "TESTLASTNAME", "nombres": "TEST NAME", "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME", "rut": "0000000108"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps(data)), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails": [{"rut": "0000000108", "email": "test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEquals(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        assert_true("id=\"run_saved_force\"" in response._container[0])
+        assert_true("id=\"run_saved_enroll\"" not in response._container[0])
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'avilio.perez', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0000000108', 'email': 'test@test.test'})
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_staff_post_force_no_enroll(self, get, post, mock_created_user):
+        post_data = {
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'force': '1'
+        }
+
+        data = {"cuentascorp":
+                [
+                    {"cuentaCorp": "avilio.perez@ug.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "ug.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@u.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "u.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez", "tipoCuenta": "CUENTA PASAPORTE", "organismoDominio": "Universidad de Chile"}
+                ]
+                }
+
+        get.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno": "TESTLASTNAME", "apellidoMaterno": "TESTLASTNAME", "nombres": "TEST NAME", "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME", "rut": "0000000108"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps(data)), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails": [{"rut": "0000000108", "email": "test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        assert_true("id=\"run_saved_force_no_auto\"" in response._container[0])
+        assert_true("id=\"run_saved_enroll_no_auto\"" not in response._container[0])
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'avilio.perez', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0000000108', 'email': 'test@test.test'})
+
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_staff_post_force_no_user(self, get, post, mock_created_user):
+        post_data = {
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        data = {"cuentascorp":
+                [
+                    {"cuentaCorp": "avilio.perez@ug.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "ug.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@u.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "u.uchile.cl"}
+                ]
+                }
+
+        get.side_effect = [namedtuple("Request", ["status_code"])(302)]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps(data)), namedtuple("Request", ["status_code"])(302)]
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEquals(response.status_code, 200)
+        aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
+
+        self.assertEqual(aux.run, '0000000108')
+        self.assertEqual(aux.auto_enroll, True)
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        assert_true("id=\"run_saved_pending\"" in response._container[0])
