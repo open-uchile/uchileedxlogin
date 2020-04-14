@@ -8,7 +8,7 @@ from opaque_keys.edx.django.models import CourseKeyField
 
 class EdxLoginUser(models.Model):
     run = models.CharField(max_length=18, unique=True, db_index=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, blank=False, null=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, blank=False, null=False)
 
 
 class EdxLoginUserCourseRegistration(models.Model):
