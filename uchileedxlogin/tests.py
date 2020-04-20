@@ -288,7 +288,7 @@ class TestStaffView(ModuleStoreTestCase):
         with patch('student.models.cc.User.save'):
             content_type = ContentType.objects.get_for_model(EdxLoginUser)
             permission = Permission.objects.get(
-                codename='instructor_staff',
+                codename='uchile_instructor_staff',
                 content_type=content_type,
             )
             # staff user

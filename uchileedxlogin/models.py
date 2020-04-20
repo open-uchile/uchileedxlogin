@@ -9,7 +9,7 @@ from opaque_keys.edx.django.models import CourseKeyField
 class EdxLoginUser(models.Model):
     class Meta:
         permissions = [
-            ("instructor_staff", "instructor can enroll/unenroll users"),
+            ("uchile_instructor_staff", "instructor can enroll/unenroll users"),
         ]
     run = models.CharField(max_length=18, unique=True, db_index=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, blank=False, null=False)

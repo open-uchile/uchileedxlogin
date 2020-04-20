@@ -343,7 +343,7 @@ class ContentStaff(object):
     def validate_user(self, request, course_id):
         access = False
         if not request.user.is_anonymous:
-            if request.user.has_perm('uchileedxlogin.instructor_staff'):                
+            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff'):                
                 if request.user.is_staff:
                     access = True
                 if self.is_instructor(request, course_id):
