@@ -286,25 +286,27 @@ class TestStaffView(ModuleStoreTestCase):
         self.course = CourseFactory.create(org='mss', course='999', display_name='2020', emit_signals=True)
         aux = CourseOverview.get_from_id(self.course.id)
         with patch('student.models.cc.User.save'):
-            # staff user
-            self.client = Client()
-            user = UserFactory(username='testuser3', password='12345', email='student2@edx.org', is_staff=True)
-            self.client.login(username='testuser3', password='12345')
-
-            # user instructor
-            self.client_instructor = Client()
-            user_instructor = UserFactory(username='instructor', password='12345', email='instructor@edx.org')
-            role = CourseInstructorRole(self.course.id)
-            role.add_users(user_instructor)
-            self.client_instructor.login(username='instructor', password='12345')
-
-            # user instructor staff
-            self.instructor_staff = UserFactory(username='instructor_staff', password='12345', email='instructor_staff@edx.org')
             content_type = ContentType.objects.get_for_model(EdxLoginUser)
             permission = Permission.objects.get(
                 codename='instructor_staff',
                 content_type=content_type,
             )
+            # staff user
+            self.client = Client()
+            user = UserFactory(username='testuser3', password='12345', email='student2@edx.org', is_staff=True)
+            user.user_permissions.add(permission)
+            self.client.login(username='testuser3', password='12345')
+
+            # user instructor
+            self.client_instructor = Client()
+            user_instructor = UserFactory(username='instructor', password='12345', email='instructor@edx.org')
+            user_instructor.user_permissions.add(permission)
+            role = CourseInstructorRole(self.course.id)
+            role.add_users(user_instructor)
+            self.client_instructor.login(username='instructor', password='12345')
+
+            # user instructor staff
+            self.instructor_staff = UserFactory(username='instructor_staff', password='12345', email='instructor_staff@edx.org')            
             self.instructor_staff.user_permissions.add(permission)
             self.instructor_staff_client = Client()
             assert_true(self.instructor_staff_client.login(username='instructor_staff', password='12345'))
@@ -312,6 +314,7 @@ class TestStaffView(ModuleStoreTestCase):
             # user staff course
             self.staff_user_client = Client()
             self.staff_user = UserFactory(username='staff_user', password='12345', email='staff_user@edx.org')
+            self.staff_user.user_permissions.add(permission)
             CourseEnrollmentFactory(user=self.staff_user, course_id=self.course.id)
             CourseStaffRole(self.course.id).add_users(self.staff_user)
             assert_true(self.staff_user_client.login(username='staff_user', password='12345'))
@@ -607,14 +610,7 @@ class TestStaffView(ModuleStoreTestCase):
         }
 
         response = self.instructor_staff_client.post(reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
-
-        aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
-
-        self.assertEqual(aux.run, "0000000108")
-        self.assertEqual(aux.mode, 'audit')
-        self.assertEqual(aux.auto_enroll, True)
-        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+        self.assertEquals(response.status_code, 404)
 
     def test_staff_post_instructor(self):
         post_data = {
