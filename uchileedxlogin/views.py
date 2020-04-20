@@ -640,8 +640,3 @@ class EdxLoginExport(View):
         writer.writerows(data)
 
         return response
-
-
-class EdxLoginInstructor(View, ContentStaff):
-    def post(self, request):
-        return JsonResponse({'action': 'hola'})
