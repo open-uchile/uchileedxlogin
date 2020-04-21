@@ -6,7 +6,8 @@ from django.urls import reverse
 from django.test import TestCase, Client
 from django.test import Client
 from django.conf import settings
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Permission, User
+from django.contrib.contenttypes.models import ContentType
 from urlparse import parse_qs
 from openedx.core.lib.tests.tools import assert_true
 from opaque_keys.edx.locator import CourseLocator
@@ -15,7 +16,7 @@ from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-
+from student.roles import CourseInstructorRole, CourseStaffRole
 import re
 import json
 import urlparse
@@ -285,9 +286,44 @@ class TestStaffView(ModuleStoreTestCase):
         self.course = CourseFactory.create(org='mss', course='999', display_name='2020', emit_signals=True)
         aux = CourseOverview.get_from_id(self.course.id)
         with patch('student.models.cc.User.save'):
+            content_type = ContentType.objects.get_for_model(EdxLoginUser)
+            permission = Permission.objects.get(
+                codename='uchile_instructor_staff',
+                content_type=content_type,
+            )
+            # staff user
             self.client = Client()
             user = UserFactory(username='testuser3', password='12345', email='student2@edx.org', is_staff=True)
+            user.user_permissions.add(permission)
             self.client.login(username='testuser3', password='12345')
+
+            # user instructor
+            self.client_instructor = Client()
+            user_instructor = UserFactory(username='instructor', password='12345', email='instructor@edx.org')
+            user_instructor.user_permissions.add(permission)
+            role = CourseInstructorRole(self.course.id)
+            role.add_users(user_instructor)
+            self.client_instructor.login(username='instructor', password='12345')
+
+            # user instructor staff
+            self.instructor_staff = UserFactory(username='instructor_staff', password='12345', email='instructor_staff@edx.org')            
+            self.instructor_staff.user_permissions.add(permission)
+            self.instructor_staff_client = Client()
+            assert_true(self.instructor_staff_client.login(username='instructor_staff', password='12345'))
+
+            # user staff course
+            self.staff_user_client = Client()
+            self.staff_user = UserFactory(username='staff_user', password='12345', email='staff_user@edx.org')
+            self.staff_user.user_permissions.add(permission)
+            CourseEnrollmentFactory(user=self.staff_user, course_id=self.course.id)
+            CourseStaffRole(self.course.id).add_users(self.staff_user)
+            assert_true(self.staff_user_client.login(username='staff_user', password='12345'))
+
+            # user student
+            self.student_client = Client()
+            self.student = UserFactory(username='student', password='12345', email='student@edx.org')
+            CourseEnrollmentFactory(user=self.student, course_id=self.course.id)
+            assert_true(self.student_client.login(username='student', password='12345'))
 
         EdxLoginUser.objects.create(user=user, run='009472337K')
         result = self.client.get(reverse('uchileedxlogin-login:staff'))
@@ -301,6 +337,7 @@ class TestStaffView(ModuleStoreTestCase):
 
     def test_staff_post(self):
         post_data = {
+            'action': "staff_enroll",
             'runs': '10-8',
             'course': self.course.id,
             'modes': 'audit',
@@ -319,6 +356,7 @@ class TestStaffView(ModuleStoreTestCase):
 
     def test_staff_post_multiple_run(self):
         post_data = {
+            'action': "staff_enroll",
             'runs': '10-8\n10-8\n10-8\n10-8\n10-8',
             'course': self.course.id,
             'modes': 'audit',
@@ -338,6 +376,7 @@ class TestStaffView(ModuleStoreTestCase):
 
     def test_staff_post_sin_curso(self):
         post_data = {
+            'action': "staff_enroll",
             'runs': '10-8',
             'course': '',
             'modes': 'audit',
@@ -351,6 +390,7 @@ class TestStaffView(ModuleStoreTestCase):
 
     def test_staff_post_sin_run(self):
         post_data = {
+            'action': "staff_enroll",
             'runs': '',
             'course': self.course.id,
             'modes': 'audit',
@@ -364,6 +404,7 @@ class TestStaffView(ModuleStoreTestCase):
 
     def test_staff_post_run_malo(self):
         post_data = {
+            'action': "staff_enroll",
             'runs': '12345678-9',
             'course': self.course.id,
             'modes': 'audit',
@@ -377,6 +418,7 @@ class TestStaffView(ModuleStoreTestCase):
 
     def test_staff_post_exits_user_enroll(self):
         post_data = {
+            'action': "staff_enroll",
             'runs': '9472337-k',
             'course': self.course.id,
             'modes': 'audit',
@@ -392,6 +434,7 @@ class TestStaffView(ModuleStoreTestCase):
 
     def test_staff_post_exits_user_no_enroll(self):
         post_data = {
+            'action': "staff_enroll",
             'runs': '9472337-k',
             'course': self.course.id,
             'modes': 'audit'
@@ -409,6 +452,7 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.get')
     def test_staff_post_force_enroll(self, get, post, mock_created_user):
         post_data = {
+            'action': "staff_enroll",
             'runs': '10-8',
             'course': self.course.id,
             'modes': 'audit',
@@ -443,6 +487,7 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.get')
     def test_staff_post_force_no_enroll(self, get, post, mock_created_user):
         post_data = {
+            'action': "staff_enroll",
             'runs': '10-8',
             'course': self.course.id,
             'modes': 'audit',
@@ -476,6 +521,7 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.get')
     def test_staff_post_force_no_user(self, get, post, mock_created_user):
         post_data = {
+            'action': "staff_enroll",
             'runs': '10-8',
             'course': self.course.id,
             'modes': 'audit',
@@ -505,3 +551,170 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
         assert_true("id=\"run_saved_pending\"" in response._container[0])
+
+    def test_staff_post_no_action_params(self):
+        post_data = {
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        r = json.loads(response._container[0])
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(r['parameters'], ["action"])
+        self.assertEquals(r['info'], {"action": ""})
+
+    def test_staff_post_wrong_action_params(self):
+        post_data = {
+            'action': "test",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        r = json.loads(response._container[0])
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(r['parameters'], ["action"])
+        self.assertEquals(r['info'], {"action": "test"})
+
+    def test_staff_post_staff_course(self):
+        post_data = {
+            'action': "enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.staff_user_client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)
+
+        aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
+
+        self.assertEqual(aux.run, "0000000108")
+        self.assertEqual(aux.mode, 'audit')
+        self.assertEqual(aux.auto_enroll, True)
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+
+    def test_staff_post_instructor_staff(self):
+        post_data = {
+            'action': "enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.instructor_staff_client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 404)
+
+    def test_staff_post_instructor(self):
+        post_data = {
+            'action': "enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client_instructor.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 200)
+
+        aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
+
+        self.assertEqual(aux.run, "0000000108")
+        self.assertEqual(aux.mode, 'audit')
+        self.assertEqual(aux.auto_enroll, True)
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+
+    def test_staff_post_unenroll_no_db(self):
+        post_data = {
+            'action': "unenroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+        }
+
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        r = json.loads(response._container[0])
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(r['run_unenroll']['run_no_exists'], '0000000108')
+
+    def test_staff_post_unenroll_edxlogincourse(self):
+        post_data = {
+            'action': "unenroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+        }
+        EdxLoginUser.objects.create(user=self.student, run='0000000108')
+        EdxLoginUserCourseRegistration.objects.create(
+            run='0000000108',
+            course=self.course.id,
+            mode="audit",
+            auto_enroll=True)
+
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
+
+    def test_staff_post_unenroll_enrollment(self):
+        post_data = {
+            'action': "unenroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+        }
+        EdxLoginUser.objects.create(user=self.student, run='0000000108')
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        r = json.loads(response._container[0])
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(r['run_unenroll']['run_unenroll_enroll'], '0000000108')
+
+    def test_staff_post_unenroll_allowed(self):
+        post_data = {
+            'action': "unenroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+        }
+        EdxLoginUser.objects.create(user=self.student, run='0000000108')
+        allowed = CourseEnrollmentAllowedFactory(email=self.student.email, course_id=self.course.id, user=self.student)
+        response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        r = json.loads(response._container[0])
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(r['run_unenroll']['run_unenroll_enroll_allowed'], '0000000108')
+
+    def test_staff_post_unenroll_student(self):
+        post_data = {
+            'action': "unenroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+        }
+        EdxLoginUser.objects.create(user=self.student, run='0000000108')
+
+        response = self.student_client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 404)
+
+    def test_staff_post_enroll_student(self):
+        post_data = {
+            'action': "enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        EdxLoginUser.objects.create(user=self.student, run='0000000108')
+
+        response = self.student_client.post(reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEquals(response.status_code, 404)

@@ -45,6 +45,7 @@
     <div style="text-align: center">
         <form method="POST">
            <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_token}"/>
+           <input type="hidden" name="action" value="staff_enroll"/>
             % if context.get('saved', UNDEFINED) == 'saved':
                 <p style="color:rgb(56, 181, 197); margin-bottom: 15px;">Datos Guardados Correctamente.</p>
                 % if context.get('run_saved', UNDEFINED) is not UNDEFINED:
@@ -79,6 +80,9 @@
             % endif
             % if context.get('error_mode', UNDEFINED) is not UNDEFINED:
                 <p style="color:firebrick; margin-bottom: 15px;">El modo esta incorrecto.</p>
+            % endif
+            % if context.get('error_action', UNDEFINED) is not UNDEFINED:
+                <p style="color:firebrick; margin-bottom: 15px;">La acción es incorrecta.</p>
             % endif
             <div class="form-group" style="margin: 15px 15px;">
                 <label for="runs" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">RUN(s):</label>

@@ -7,7 +7,7 @@ from django.contrib.auth import login
 from django.contrib.auth.models import User
 from django.contrib.sites.shortcuts import get_current_site
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponseForbidden, Http404
 from django.shortcuts import render
 from django.urls import reverse
 from django.views.generic.base import View
@@ -18,6 +18,9 @@ from itertools import cycle
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys import InvalidKeyError
 from requests.auth import HTTPBasicAuth
+from courseware.courses import get_course_by_id, get_course_with_access
+from courseware.access import has_access
+from util.json_request import JsonResponse, JsonResponseBadRequest
 
 import json
 import requests
@@ -29,6 +32,33 @@ import unicodecsv as csv
 import re
 
 logger = logging.getLogger(__name__)
+
+
+def require_post_action():
+    """
+    Checks for required parameters or renders a 400 error.
+    (decorator with arguments)
+
+    `args` is a *list of required POST parameter names.
+    `kwargs` is a **dict of required POST parameter names
+        to string explanations of the parameter
+    """
+    def decorator(func):  # pylint: disable=missing-docstring
+        def wrapped(*args, **kwargs):  # pylint: disable=missing-docstring
+            request = args[1]
+            action = request.POST.get("action", "")
+            error_response_data = {
+                'error': 'Missing required query parameter(s)',
+                'parameters': ["action"],
+                'info': {"action": action},
+            }
+            if action in ["enroll", "unenroll", "staff_enroll"]:
+                return func(*args, **kwargs)
+            else:
+                return JsonResponse(error_response_data, status=400)
+
+        return wrapped
+    return decorator
 
 
 class Content(object):
@@ -210,6 +240,119 @@ class Content(object):
         raise Exception("Error generating username for name {}".format())
 
 
+class ContentStaff(object):
+    def validarRut(self, rut):
+        rut = rut.upper()
+        rut = rut.replace("-", "")
+        rut = rut.replace(".", "")
+        rut = rut.strip()
+        aux = rut[:-1]
+        dv = rut[-1:]
+
+        revertido = map(int, reversed(str(aux)))
+        factors = cycle(range(2, 8))
+        s = sum(d * f for d, f in zip(revertido, factors))
+        res = (-s) % 11
+
+        if str(res) == dv:
+            return True
+        elif dv == "K" and res == 10:
+            return True
+        else:
+            return False
+
+    def validate_course(self, id_curso):
+        from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+        try:
+            aux = CourseKey.from_string(id_curso)
+            return CourseOverview.objects.filter(id=aux).exists()
+        except InvalidKeyError:
+            return False
+
+    def validate_data(self, request, lista_run, context, force):
+        run_malos = ""
+        # validacion de los run
+        for run in lista_run:
+            try:
+                if run[0] == 'P':
+                    if 5 > len(run[1:]) or len(run[1:]) > 20:
+                        run_malos += run + " - "
+                else:
+                    if not self.validarRut(run):
+                        run_malos += run + " - "
+
+            except Exception:
+                run_malos += run + " - "
+
+        run_malos = run_malos[:-3]
+
+        # validaciones de otros campos
+        # si existe run malo
+        if run_malos != "":
+            context['run_malos'] = run_malos
+
+        # valida curso
+        if request.POST.get("course", "") == "":
+            context['curso2'] = ''
+        elif not self.validate_course(request.POST.get("course", "")):  # valida si existe el curso
+            context['error_curso'] = ''
+
+        # si no se ingreso run
+        if not lista_run:
+            context['no_run'] = ''
+
+        # si el modo es incorrecto
+        if not request.POST.get("modes", None) in [x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
+            context['error_mode'] = ''
+
+        # si la accion es incorrecto
+        if not request.POST.get("action", "") in ["enroll", "unenroll", "staff_enroll"]:
+            context['error_action'] = ''
+        return context
+
+    def enroll_course(self, edxlogin_user, course, enroll, mode):
+        """
+        Enroll the user in the pending courses, removing the enrollments when
+        they are applied.
+        """
+        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+
+        if enroll:
+            CourseEnrollment.enroll(edxlogin_user.user, CourseKey.from_string(course), mode=mode)
+        else:
+            CourseEnrollmentAllowed.objects.create(course_id=CourseKey.from_string(course), email=edxlogin_user.user.email, user=edxlogin_user.user)
+
+    def is_course_staff(self, request, course_id):
+        try:
+            course_key = CourseKey.from_string(course_id)
+            course = get_course_with_access(request.user, "load", course_key)
+
+            return bool(has_access(request.user, 'staff', course))
+        except InvalidKeyError:
+            return False
+
+    def is_instructor(self, request, course_id):
+        try:
+            course_key = CourseKey.from_string(course_id)
+            course = get_course_with_access(request.user, "load", course_key)
+
+            return bool(has_access(request.user, 'instructor', course))
+        except InvalidKeyError:
+            return False
+
+    def validate_user(self, request, course_id):
+        access = False
+        if not request.user.is_anonymous:
+            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff'):                
+                if request.user.is_staff:
+                    access = True
+                if self.is_instructor(request, course_id):
+                    access = True
+                if self.is_course_staff(request, course_id):
+                    access = True
+        return access
+
+
 class EdxLoginLoginRedirect(View):
 
     def get(self, request):
@@ -292,102 +435,61 @@ class EdxLoginCallback(View, Content):
         registrations.delete()
 
 
-class EdxLoginStaff(View, Content):
-    def validarRut(self, rut):
-        rut = rut.upper()
-        rut = rut.replace("-", "")
-        rut = rut.replace(".", "")
-        rut = rut.strip()
-        aux = rut[:-1]
-        dv = rut[-1:]
-
-        revertido = map(int, reversed(str(aux)))
-        factors = cycle(range(2, 8))
-        s = sum(d * f for d, f in zip(revertido, factors))
-        res = (-s) % 11
-
-        if str(res) == dv:
-            return True
-        elif dv == "K" and res == 10:
-            return True
-        else:
-            return False
-
-    def validate_course(self, id_curso):
-        from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-        try:
-            aux = CourseKey.from_string(id_curso)
-            return CourseOverview.objects.filter(id=aux).exists()
-        except InvalidKeyError:
-            return False
-
-    def validate_data(self, request, lista_run, context, force):
-        run_malos = ""
-        # validacion de los run
-        for run in lista_run:
-            try:
-                if run[0] == 'P':
-                    if 5 > len(run[1:]) or len(run[1:]) > 20:
-                        run_malos += run + " - "
-                else:
-                    if not self.validarRut(run):
-                        run_malos += run + " - "
-
-            except Exception:
-                run_malos += run + " - "
-
-        run_malos = run_malos[:-3]
-
-        # validaciones de otros campos
-        # si existe run malo
-        if run_malos != "":
-            context['run_malos'] = run_malos
-
-        # valida curso
-        if request.POST.get("course", "") == "":
-            context['curso2'] = ''
-        elif not self.validate_course(request.POST.get("course", "")):  # valida si existe el curso
-            context['error_curso'] = ''
-
-        # si no se ingreso run
-        if not lista_run:
-            context['no_run'] = ''
-
-        # si el modo es incorrecto
-        if not request.POST.get("modes", None) in [x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
-            context['error_mode'] = ''
-
-        return context
+class EdxLoginStaff(View, Content, ContentStaff):
 
     def get(self, request):
-        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
-        return render(request, 'edxlogin/staff.html', context)
-
-    def post(self, request):
-        lista_run = request.POST.get("runs", "").split('\n')
-        # limpieza de los run ingresados
-        lista_run = [run.upper() for run in lista_run]
-        lista_run = [run.replace("-", "") for run in lista_run]
-        lista_run = [run.replace(".", "") for run in lista_run]
-        lista_run = [run.strip() for run in lista_run]
-        lista_run = [run for run in lista_run if run]
-
-        # verifica si el checkbox de auto enroll fue seleccionado
-        enroll = False
-        if request.POST.getlist("enroll"):
-            enroll = True
-
-        # verifica si el checkbox de forzar creacion de usuario fue seleccionado
-        force = False
-        if request.POST.getlist("force"):
-            force = True
-
-        context = {'runs': request.POST.get('runs'), 'curso': request.POST.get("course", ""), 'auto_enroll': enroll, 'modo': request.POST.get("modes", None)}
-        # validacion de datos
-        context = self.validate_data(request, lista_run, context, force)
-        # retorna si hubo al menos un error
-        if len(context) > 4:
+        course_id = request.GET.get("course", "")
+        if self.validate_user(request, course_id):
+            context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
             return render(request, 'edxlogin/staff.html', context)
+        else:
+            raise Http404()
+
+    @require_post_action()
+    def post(self, request):
+        course_id = request.POST.get("course", "")
+        if self.validate_user(request, course_id):
+            action = request.POST.get("action", "")
+            lista_run = request.POST.get("runs", "").split('\n')
+            # limpieza de los run ingresados
+            lista_run = [run.upper() for run in lista_run]
+            lista_run = [run.replace("-", "") for run in lista_run]
+            lista_run = [run.replace(".", "") for run in lista_run]
+            lista_run = [run.strip() for run in lista_run]
+            lista_run = [run for run in lista_run if run]
+
+            # verifica si el checkbox de auto enroll fue seleccionado
+            enroll = False
+            if request.POST.getlist("enroll"):
+                enroll = True
+
+            # verifica si el checkbox de forzar creacion de usuario fue seleccionado
+            force = False
+            if request.POST.getlist("force"):
+                force = True
+
+            context = {'runs': request.POST.get('runs'), 'curso': request.POST.get("course", ""), 'auto_enroll': enroll, 'modo': request.POST.get("modes", None)}
+            # validacion de datos
+            context = self.validate_data(request, lista_run, context, force)
+            # retorna si hubo al menos un error
+            if len(context) > 4 and action not in ["enroll", "unenroll"]:
+                return render(request, 'edxlogin/staff.html', context)
+            if len(context) > 4 and action in ["enroll", "unenroll"]:
+                return JsonResponse(context)
+
+            if action in ["enroll", "staff_enroll"]:
+                context = self.enroll_or_create_user(request, lista_run, force, enroll)
+                if action in ["enroll"]:
+                    return JsonResponse(context)
+                return render(request, 'edxlogin/staff.html', context)
+
+            elif action == "unenroll":
+                context = self.unenroll_user(request, lista_run)
+                return JsonResponse(context)
+        else:
+            raise Http404()
+
+    def enroll_or_create_user(self, request, lista_run, force, enroll):
         run_saved_force = ""
         run_saved_force_no_auto = ""
         run_saved_pending = ""
@@ -430,20 +532,54 @@ class EdxLoginStaff(View, Content):
             'run_saved_enroll_no_auto': run_saved_enroll_no_auto[:-3],
             'run_saved_force_no_auto': run_saved_force_no_auto[:-3]
         }
-        context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved', 'run_saved': run_saved}
-        return render(request, 'edxlogin/staff.html', context)
+        return {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved', 'run_saved': run_saved}
 
-    def enroll_course(self, edxlogin_user, course, enroll, mode):
-        """
-        Enroll the user in the pending courses, removing the enrollments when
-        they are applied.
-        """
+    def unenroll_user(self, request, lista_run):
         from student.models import CourseEnrollment, CourseEnrollmentAllowed
 
-        if enroll:
-            CourseEnrollment.enroll(edxlogin_user.user, CourseKey.from_string(course), mode=mode)
-        else:
-            CourseEnrollmentAllowed.objects.create(course_id=CourseKey.from_string(course), email=edxlogin_user.user.email, user=edxlogin_user.user)
+        run_unenroll_pending = ""
+        run_unenroll_enroll = ""
+        run_unenroll_enroll_allowed = ""
+        run_no_exists = ""
+
+        course_id = request.POST.get("course", "")
+        course_key = CourseKey.from_string(course_id)
+        with transaction.atomic():
+            for run in lista_run:
+                while len(run) < 10 and 'P' != run[0]:
+                    run = "0" + run
+                try:
+                    edxlogin_user = EdxLoginUser.objects.get(run=run)
+
+                    registrations = EdxLoginUserCourseRegistration.objects.filter(run=run, course=course_key)
+                    if registrations:
+                        run_unenroll_pending += run + " - "
+                        registrations.delete()
+
+                    enrollmentAllowed = CourseEnrollmentAllowed.objects.filter(course_id=course_key, user=edxlogin_user.user)
+                    if enrollmentAllowed:
+                        run_unenroll_enroll_allowed += run + " - "
+                        enrollmentAllowed.delete()
+
+                    enrollment = CourseEnrollment.get_enrollment(edxlogin_user.user, course_key)
+                    if enrollment:
+                        run_unenroll_enroll += run + " - "
+                        enrollment.delete()
+
+                except EdxLoginUser.DoesNotExist:
+                    registrations = EdxLoginUserCourseRegistration.objects.filter(run=run, course=course_key)
+                    if registrations:
+                        registrations.delete()
+                    else:
+                        run_no_exists += run + " - "
+
+        run_unenroll = {
+            'run_unenroll_pending': run_unenroll_pending[:-3],
+            'run_unenroll_enroll': run_unenroll_enroll[:-3],
+            'run_unenroll_enroll_allowed': run_unenroll_enroll_allowed[:-3],
+            'run_no_exists': run_no_exists[:-3],
+        }
+        return {'runs': '', 'auto_enroll': True, 'modo': 'honor', 'saved': 'unenroll', 'run_unenroll': run_unenroll}
 
     def force_create_user(self, run):
         try:
