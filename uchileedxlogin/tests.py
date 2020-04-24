@@ -682,7 +682,7 @@ class TestStaffView(ModuleStoreTestCase):
             'course': self.course.id,
             'modes': 'audit',
         }
-        
+
         response = self.client.post(reverse('uchileedxlogin-login:staff'), post_data)
         r = json.loads(response._container[0])
 
@@ -708,7 +708,7 @@ class TestStaffView(ModuleStoreTestCase):
 
         self.assertEquals(response.status_code, 200)
         self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
-    
+
     def test_staff_post_unenroll_enrollment(self):
         post_data = {
             'action': "unenroll",
