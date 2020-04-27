@@ -581,26 +581,44 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEquals(r['parameters'], ["action"])
         self.assertEquals(r['info'], {"action": "test"})
 
-    def test_staff_post_staff_course(self):
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_staff_post_staff_course(self, get, post, mock_created_user):
         post_data = {
             'action': "enroll",
             'runs': '10-8',
             'course': self.course.id,
             'modes': 'audit',
-            'enroll': '1'
+            'enroll': '1',
+            'force': '1'
         }
+        data = {"cuentascorp":
+                [
+                    {"cuentaCorp": "avilio.perez@ug.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "ug.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@u.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "u.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez", "tipoCuenta": "CUENTA PASAPORTE", "organismoDominio": "Universidad de Chile"}
+                ]
+                }
+
+        get.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno": "TESTLASTNAME", "apellidoMaterno": "TESTLASTNAME", "nombres": "TEST NAME", "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME", "rut": "0000000108"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps(data)), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails": [{"rut": "0000000108", "email": "test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
 
         response = self.staff_user_client.post(reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEquals(response.status_code, 200)
 
-        aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
+        aux = EdxLoginUser.objects.get(run="0000000108")
 
         self.assertEqual(aux.run, "0000000108")
-        self.assertEqual(aux.mode, 'audit')
-        self.assertEqual(aux.auto_enroll, True)
-        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
+        assert_true("\"run_saved_force\": \"0000000108\"" in response._container[0])
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'avilio.perez', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0000000108', 'email': 'test@test.test'})
 
-    def test_staff_post_instructor_staff(self):
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_staff_post_instructor_staff(self, get, post, mock_created_user):
         post_data = {
             'action': "enroll",
             'runs': '10-8',
@@ -608,28 +626,54 @@ class TestStaffView(ModuleStoreTestCase):
             'modes': 'audit',
             'enroll': '1'
         }
+        data = {"cuentascorp":
+                [
+                    {"cuentaCorp": "avilio.perez@ug.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "ug.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@u.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "u.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez", "tipoCuenta": "CUENTA PASAPORTE", "organismoDominio": "Universidad de Chile"}
+                ]
+                }
+
+        get.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno": "TESTLASTNAME", "apellidoMaterno": "TESTLASTNAME", "nombres": "TEST NAME", "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME", "rut": "0000000108"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps(data)), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails": [{"rut": "0000000108", "email": "test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
 
         response = self.instructor_staff_client.post(reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEquals(response.status_code, 404)
 
-    def test_staff_post_instructor(self):
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_staff_post_instructor(self, get, post, mock_created_user):
         post_data = {
             'action': "enroll",
             'runs': '10-8',
             'course': self.course.id,
             'modes': 'audit',
-            'enroll': '1'
+            'enroll': '1',
+            'force': '1'
         }
+        data = {"cuentascorp":
+                [
+                    {"cuentaCorp": "avilio.perez@ug.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "ug.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "uchile.cl"},
+                    {"cuentaCorp": "avilio.perez@u.uchile.cl", "tipoCuenta": "EMAIL", "organismoDominio": "u.uchile.cl"},
+                    {"cuentaCorp": "avilio.perez", "tipoCuenta": "CUENTA PASAPORTE", "organismoDominio": "Universidad de Chile"}
+                ]
+                }
+
+        get.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"apellidoPaterno": "TESTLASTNAME", "apellidoMaterno": "TESTLASTNAME", "nombres": "TEST NAME", "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME", "rut": "0000000108"}))]
+        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps(data)), namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails": [{"rut": "0000000108", "email": "test@test.test", "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
 
         response = self.client_instructor.post(reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEquals(response.status_code, 200)
 
-        aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
+        aux = EdxLoginUser.objects.get(run="0000000108")
 
         self.assertEqual(aux.run, "0000000108")
-        self.assertEqual(aux.mode, 'audit')
-        self.assertEqual(aux.auto_enroll, True)
-        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 1)
+        self.assertEquals(EdxLoginUserCourseRegistration.objects.all().count(), 0)
+        self.assertEqual(mock_created_user.call_args_list[0][0][0], {'username': 'avilio.perez', 'apellidoMaterno': 'TESTLASTNAME', 'nombres': 'TEST NAME', 'apellidoPaterno': 'TESTLASTNAME', 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME', 'rut': '0000000108', 'email': 'test@test.test'})
+        assert_true("\"run_saved_force\": \"0000000108\"" in response._container[0])
 
     def test_staff_post_unenroll_no_db(self):
         post_data = {
@@ -706,13 +750,17 @@ class TestStaffView(ModuleStoreTestCase):
         response = self.student_client.post(reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEquals(response.status_code, 404)
 
-    def test_staff_post_enroll_student(self):
+    @patch("uchileedxlogin.views.EdxLoginStaff.create_user_by_data", side_effect=create_user2)
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_staff_post_enroll_student(self, get, post, mock_created_user):
         post_data = {
             'action': "enroll",
             'runs': '10-8',
             'course': self.course.id,
             'modes': 'audit',
-            'enroll': '1'
+            'enroll': '1',
+            'force': '1'
         }
         EdxLoginUser.objects.create(user=self.student, run='0000000108')
 
