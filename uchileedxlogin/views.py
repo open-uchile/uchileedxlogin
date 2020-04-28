@@ -32,7 +32,7 @@ import unicodecsv as csv
 import re
 
 logger = logging.getLogger(__name__)
-
+regex = r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$'
 
 def require_post_action():
     """
@@ -89,24 +89,20 @@ class Content(object):
         return'null'
 
     def verify_email_principal(self, data):
-        i = 0
-        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != 'PRINCIPAL':
-            i = i + 1
-
-        if i < len(data['emails']) and data['emails'][i]['email'] is not None and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
-            if not User.objects.filter(email=data['emails'][i]['email']).exists():
-                return data['emails'][i]['email']
+        for mail in data['emails']:
+            if mail['nombreTipoEmail'] == 'PRINCIPAL':
+                if mail['email'] is not None and re.match(regex, mail['email'].lower()):
+                    if not User.objects.filter(email=mail['email']).exists():
+                        return mail['email']
 
         return self.verify_email_alternativo(data)
 
     def verify_email_alternativo(self, data):
-        i = 0
-        while i < len(data['emails']) and data['emails'][i]['nombreTipoEmail'] != 'ALTERNATIVO':
-            i = i + 1
-
-        if i < len(data['emails']) and data['emails'][i]['email'] is not None and re.match(r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$', data['emails'][i]['email'].lower()):
-            if not User.objects.filter(email=data['emails'][i]['email']).exists():
-                return data['emails'][i]['email']
+        for mail in data['emails']:
+            if mail['nombreTipoEmail'] ==  'ALTERNATIVO':
+                if mail['email'] is not None and re.match(regex, mail['email'].lower()):
+                    if not User.objects.filter(email=mail['email']).exists():
+                        return mail['email']
 
         return 'null'
 
@@ -607,12 +603,11 @@ class EdxLoginStaff(View, Content, ContentStaff):
         data = json.loads(result.text)
         username = ""
         if "cuentascorp" in data and len(data["cuentascorp"]) > 0:
-            i = 0
             email = data["cuentascorp"]
-            while i < len(email) and email[i]["tipoCuenta"] != "CUENTA PASAPORTE":
-                i += 1
-            if i < len(email):
-                username = email[i]["cuentaCorp"] or ""
+            for name in email:
+                if name["tipoCuenta"] == "CUENTA PASAPORTE":              
+                    username = name["cuentaCorp"] or ""
+                    break
         return username
 
 
