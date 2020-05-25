@@ -13,7 +13,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterModelOptions(
-            name='edxloginuser',
-            options={'permissions': [('instructor_staff', 'instructor can enroll/unenroll users')]},
-        ),
-    ]
+            name='edxloginuser', options={
+                'permissions': [
+                    ('instructor_staff', 'instructor can enroll/unenroll users')]}, ), ]

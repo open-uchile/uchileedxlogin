@@ -15,14 +15,13 @@ class UchileEdxloginConfig(AppConfig):
                 PluginURLs.NAMESPACE: "uchileedxlogin-login",
                 PluginURLs.REGEX: r"^uchileedxlogin/",
                 PluginURLs.RELATIVE_PATH: "urls",
-            }
-        },
+            }},
         PluginSettings.CONFIG: {
             ProjectType.CMS: {
-                SettingsType.COMMON: {PluginSettings.RELATIVE_PATH: "settings.common"}
-            },
+                SettingsType.COMMON: {
+                    PluginSettings.RELATIVE_PATH: "settings.common"}},
             ProjectType.LMS: {
-                SettingsType.COMMON: {PluginSettings.RELATIVE_PATH: "settings.common"}
-            },
+                SettingsType.COMMON: {
+                    PluginSettings.RELATIVE_PATH: "settings.common"}},
         },
     }
