@@ -17,4 +17,6 @@ class EdxLoginUserCourseRegistrationAdmin(admin.ModelAdmin):
 
 
 admin.site.register(EdxLoginUser, EdxLoginUserAdmin)
-admin.site.register(EdxLoginUserCourseRegistration, EdxLoginUserCourseRegistrationAdmin)
+admin.site.register(
+    EdxLoginUserCourseRegistration,
+    EdxLoginUserCourseRegistrationAdmin)

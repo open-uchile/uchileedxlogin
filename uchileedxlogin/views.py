@@ -34,6 +34,7 @@ import re
 logger = logging.getLogger(__name__)
 regex = r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$'
 
+
 def require_post_action():
     """
     Checks for required parameters or renders a 400 error.
@@ -69,10 +70,20 @@ class Content(object):
         parameters = {
             'username': username
         }
-        result = requests.get(settings.EDXLOGIN_USER_INFO_URL, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
+        result = requests.get(
+            settings.EDXLOGIN_USER_INFO_URL,
+            params=urlencode(parameters),
+            headers={
+                'content-type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'curl/7.58.0'})
         if result.status_code != 200:
-            logger.error("{} {}".format(result.request, result.request.headers))
-            raise Exception("Wrong username {} {}".format(result.status_code, username))
+            logger.error(
+                "{} {}".format(
+                    result.request,
+                    result.request.headers))
+            raise Exception(
+                "Wrong username {} {}".format(
+                    result.status_code, username))
         return json.loads(result.text)
 
     def get_user_email(self, rut):
@@ -82,7 +93,11 @@ class Content(object):
         parameters = {
             'rut': rut
         }
-        result = requests.post(settings.EDXLOGIN_USER_EMAIL, data=json.dumps(parameters), headers={'content-type': 'application/json'})
+        result = requests.post(
+            settings.EDXLOGIN_USER_EMAIL,
+            data=json.dumps(parameters),
+            headers={
+                'content-type': 'application/json'})
         data = json.loads(result.text)
         if 'emails' in data:
             return self.verify_email_principal(data)
@@ -91,7 +106,8 @@ class Content(object):
     def verify_email_principal(self, data):
         for mail in data['emails']:
             if mail['nombreTipoEmail'] == 'PRINCIPAL':
-                if mail['email'] is not None and re.match(regex, mail['email'].lower()):
+                if mail['email'] is not None and re.match(
+                        regex, mail['email'].lower()):
                     if not User.objects.filter(email=mail['email']).exists():
                         return mail['email']
 
@@ -99,8 +115,9 @@ class Content(object):
 
     def verify_email_alternativo(self, data):
         for mail in data['emails']:
-            if mail['nombreTipoEmail'] ==  'ALTERNATIVO':
-                if mail['email'] is not None and re.match(regex, mail['email'].lower()):
+            if mail['nombreTipoEmail'] == 'ALTERNATIVO':
+                if mail['email'] is not None and re.match(
+                        regex, mail['email'].lower()):
                     if not User.objects.filter(email=mail['email']).exists():
                         return mail['email']
 
@@ -169,16 +186,22 @@ class Content(object):
         4. return first_name[0] + "_" first_name[1..N][0..N] + "_" + last_name[1..N][0..N]
         5. return first_name[0] + "_" + last_name[0] + N
         """
-        aux_last_name = ((user_data['apellidoPaterno'] or '') + " " + (user_data['apellidoMaterno'] or '')).strip()
+        aux_last_name = ((user_data['apellidoPaterno'] or '') +
+                         " " + (user_data['apellidoMaterno'] or '')).strip()
         aux_last_name = aux_last_name.split(" ")
         aux_first_name = user_data['nombres'].split(" ")
 
-        first_name = [unidecode.unidecode(x).replace(' ', '_') for x in aux_first_name]
-        last_name = [unidecode.unidecode(x).replace(' ', '_') for x in aux_last_name]
+        first_name = [
+            unidecode.unidecode(x).replace(
+                ' ', '_') for x in aux_first_name]
+        last_name = [
+            unidecode.unidecode(x).replace(
+                ' ', '_') for x in aux_last_name]
 
         # 1.
         test_name = first_name[0] + "_" + last_name[0]
-        if len(test_name) <= EdxLoginCallback.USERNAME_MAX_LENGTH and not User.objects.filter(username=test_name).exists():
+        if len(test_name) <= EdxLoginCallback.USERNAME_MAX_LENGTH and not User.objects.filter(
+                username=test_name).exists():
             return test_name
 
         # 2.
@@ -208,17 +231,21 @@ class Content(object):
         for first_index in range(len(first_name[1:])):
             first_name_temp = first_name_temp + "_"
             for first_second_index in range(len(first_name[first_index + 1])):
-                first_name_temp = first_name_temp + first_name[first_index + 1][first_second_index]
+                first_name_temp = first_name_temp + \
+                    first_name[first_index + 1][first_second_index]
                 test_name = first_name_temp + "_" + last_name[0]
                 if len(test_name) > EdxLoginCallback.USERNAME_MAX_LENGTH:
                     break
                 for second_index in range(len(last_name[1:])):
                     test_name = test_name + "_"
-                    for second_second_index in range(len(last_name[second_index + 1])):
-                        test_name = test_name + last_name[second_index + 1][second_second_index]
+                    for second_second_index in range(
+                            len(last_name[second_index + 1])):
+                        test_name = test_name + \
+                            last_name[second_index + 1][second_second_index]
                         if len(test_name) > EdxLoginCallback.USERNAME_MAX_LENGTH:
                             break
-                        if not User.objects.filter(username=test_name).exists():
+                        if not User.objects.filter(
+                                username=test_name).exists():
                             return test_name
 
         # 5.
@@ -290,7 +317,8 @@ class ContentStaff(object):
         # valida curso
         if request.POST.get("course", "") == "":
             context['curso2'] = ''
-        elif not self.validate_course(request.POST.get("course", "")):  # valida si existe el curso
+        # valida si existe el curso
+        elif not self.validate_course(request.POST.get("course", "")):
             context['error_curso'] = ''
 
         # si no se ingreso run
@@ -298,11 +326,18 @@ class ContentStaff(object):
             context['no_run'] = ''
 
         # si el modo es incorrecto
-        if not request.POST.get("modes", None) in [x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
+        if not request.POST.get(
+                "modes", None) in [
+                x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
             context['error_mode'] = ''
 
         # si la accion es incorrecto
-        if not request.POST.get("action", "") in ["enroll", "unenroll", "staff_enroll"]:
+        if not request.POST.get(
+                "action",
+                "") in [
+                "enroll",
+                "unenroll",
+                "staff_enroll"]:
             context['error_action'] = ''
         return context
 
@@ -314,9 +349,15 @@ class ContentStaff(object):
         from student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         if enroll:
-            CourseEnrollment.enroll(edxlogin_user.user, CourseKey.from_string(course), mode=mode)
+            CourseEnrollment.enroll(
+                edxlogin_user.user,
+                CourseKey.from_string(course),
+                mode=mode)
         else:
-            CourseEnrollmentAllowed.objects.create(course_id=CourseKey.from_string(course), email=edxlogin_user.user.email, user=edxlogin_user.user)
+            CourseEnrollmentAllowed.objects.create(
+                course_id=CourseKey.from_string(course),
+                email=edxlogin_user.user.email,
+                user=edxlogin_user.user)
 
     def is_course_staff(self, request, course_id):
         try:
@@ -339,7 +380,7 @@ class ContentStaff(object):
     def validate_user(self, request, course_id):
         access = False
         if not request.user.is_anonymous:
-            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff'):                
+            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff'):
                 if request.user.is_staff:
                     access = True
                 if self.is_instructor(request, course_id):
@@ -350,16 +391,22 @@ class ContentStaff(object):
 
 
 class EdxLoginLoginRedirect(View):
-
     def get(self, request):
+        redirect_url = request.GET.get('next', "/")
         if request.user.is_authenticated():
-            return HttpResponseRedirect('/')
-        return HttpResponseRedirect('{}?{}'.format(settings.EDXLOGIN_REQUEST_URL, urlencode(self.service_parameters(request))))
+            return HttpResponseRedirect(redirect_url)
+
+        return HttpResponseRedirect(
+            '{}?{}'.format(
+                settings.EDXLOGIN_REQUEST_URL,
+                urlencode(
+                    self.service_parameters(request))))
 
     def service_parameters(self, request):
         """
         store the service parameter for uchileedxlogin.
         """
+
         parameters = {
             'service': EdxLoginLoginRedirect.get_callback_url(request),
             'renew': 'true'
@@ -371,34 +418,67 @@ class EdxLoginLoginRedirect(View):
         """
         Get the callback url
         """
-        url = request.build_absolute_uri(reverse('uchileedxlogin-login:callback'))
-        return url
+        import base64
+        redirect_url = base64.b64encode(request.GET.get('next', "/"))
+        url = request.build_absolute_uri(
+            reverse('uchileedxlogin-login:callback'))
+        return '{}?next={}'.format(url, redirect_url)
 
 
 class EdxLoginCallback(View, Content):
     USERNAME_MAX_LENGTH = 30
 
     def get(self, request):
+        import base64
+        from openedx.core.djangoapps.user_authn.utils import is_safe_login_or_logout_redirect
+
         ticket = request.GET.get('ticket')
+        redirect_url = base64.b64decode(
+            request.GET.get(
+                'next', "Lw==")).decode('utf-8')
+        if not is_safe_login_or_logout_redirect(request, redirect_url):
+            redirect_url = "/"
+        error_url = reverse('uchileedxlogin-login:login')
+
         if ticket is None:
-            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
+            logger.exception("error ticket")
+            return HttpResponseRedirect(
+                '{}?next={}'.format(
+                    error_url, redirect_url))
 
         username = self.verify_state(request, ticket)
         if username is None:
-            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
+            logger.exception("Error username ")
+            return HttpResponseRedirect(
+                '{}?next={}'.format(
+                    error_url, redirect_url))
         try:
             self.login_user(request, username)
         except Exception:
             logger.exception("Error logging " + username + " - " + ticket)
-            return HttpResponseRedirect(reverse('uchileedxlogin-login:login'))
-        return HttpResponseRedirect('/')
+            return HttpResponseRedirect(
+                '{}?next={}'.format(
+                    error_url, redirect_url))
+        return HttpResponseRedirect(redirect_url)
 
     def verify_state(self, request, ticket):
         """
             Verify if the ticket is correct
         """
-        parameters = {'service': EdxLoginLoginRedirect.get_callback_url(request), 'ticket': ticket, 'renew': 'true'}
-        result = requests.get(settings.EDXLOGIN_RESULT_VALIDATE, params=urlencode(parameters), headers={'content-type': 'application/x-www-form-urlencoded', 'User-Agent': 'curl/7.58.0'})
+        url = request.build_absolute_uri(
+            reverse('uchileedxlogin-login:callback'))
+        parameters = {
+            'service': '{}?next={}'.format(
+                url,
+                request.GET.get('next')),
+            'ticket': ticket,
+            'renew': 'true'}
+        result = requests.get(
+            settings.EDXLOGIN_RESULT_VALIDATE,
+            params=urlencode(parameters),
+            headers={
+                'content-type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'curl/7.58.0'})
         if result.status_code == 200:
             r = result.content.split('\n')
             if r[0] == 'yes':
@@ -414,7 +494,11 @@ class EdxLoginCallback(View, Content):
         user_data['username'] = username
         edxlogin_user = self.get_or_create_user(user_data)
         self.enroll_pending_courses(edxlogin_user)
-        login(request, edxlogin_user.user, backend="django.contrib.auth.backends.AllowAllUsersModelBackend",)
+        login(
+            request,
+            edxlogin_user.user,
+            backend="django.contrib.auth.backends.AllowAllUsersModelBackend",
+        )
 
     def enroll_pending_courses(self, edxlogin_user):
         """
@@ -422,12 +506,17 @@ class EdxLoginCallback(View, Content):
         they are applied.
         """
         from student.models import CourseEnrollment, CourseEnrollmentAllowed
-        registrations = EdxLoginUserCourseRegistration.objects.filter(run=edxlogin_user.run)
+        registrations = EdxLoginUserCourseRegistration.objects.filter(
+            run=edxlogin_user.run)
         for item in registrations:
             if item.auto_enroll:
-                CourseEnrollment.enroll(edxlogin_user.user, item.course, mode=item.mode)
+                CourseEnrollment.enroll(
+                    edxlogin_user.user, item.course, mode=item.mode)
             else:
-                CourseEnrollmentAllowed.objects.create(course_id=item.course, email=edxlogin_user.user.email, user=edxlogin_user.user)
+                CourseEnrollmentAllowed.objects.create(
+                    course_id=item.course,
+                    email=edxlogin_user.user.email,
+                    user=edxlogin_user.user)
         registrations.delete()
 
 
@@ -459,12 +548,21 @@ class EdxLoginStaff(View, Content, ContentStaff):
             if request.POST.getlist("enroll"):
                 enroll = True
 
-            # verifica si el checkbox de forzar creacion de usuario fue seleccionado
+            # verifica si el checkbox de forzar creacion de usuario fue
+            # seleccionado
             force = False
             if request.POST.getlist("force"):
                 force = True
 
-            context = {'runs': request.POST.get('runs'), 'curso': request.POST.get("course", ""), 'auto_enroll': enroll, 'modo': request.POST.get("modes", None)}
+            context = {
+                'runs': request.POST.get('runs'),
+                'curso': request.POST.get(
+                    "course",
+                    ""),
+                'auto_enroll': enroll,
+                'modo': request.POST.get(
+                    "modes",
+                    None)}
             # validacion de datos
             context = self.validate_data(request, lista_run, context, force)
             # retorna si hubo al menos un error
@@ -474,7 +572,8 @@ class EdxLoginStaff(View, Content, ContentStaff):
                 return JsonResponse(context)
 
             if action in ["enroll", "staff_enroll"]:
-                context = self.enroll_or_create_user(request, lista_run, force, enroll)
+                context = self.enroll_or_create_user(
+                    request, lista_run, force, enroll)
                 if action in ["enroll"]:
                     return JsonResponse(context)
                 return render(request, 'edxlogin/staff.html', context)
@@ -498,7 +597,10 @@ class EdxLoginStaff(View, Content, ContentStaff):
                     run = "0" + run
                 try:
                     edxlogin_user = EdxLoginUser.objects.get(run=run)
-                    self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                    self.enroll_course(
+                        edxlogin_user, request.POST.get(
+                            "course", ""), enroll, request.POST.get(
+                            "modes", None))
                     if enroll:
                         run_saved_enroll += run + " - "
                     else:
@@ -508,7 +610,10 @@ class EdxLoginStaff(View, Content, ContentStaff):
                     if force:
                         edxlogin_user = self.force_create_user(run)
                     if edxlogin_user:
-                        self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                        self.enroll_course(
+                            edxlogin_user, request.POST.get(
+                                "course", ""), enroll, request.POST.get(
+                                "modes", None))
                         if enroll:
                             run_saved_force += run + " - "
                         else:
@@ -528,7 +633,12 @@ class EdxLoginStaff(View, Content, ContentStaff):
             'run_saved_enroll_no_auto': run_saved_enroll_no_auto[:-3],
             'run_saved_force_no_auto': run_saved_force_no_auto[:-3]
         }
-        return {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'saved': 'saved', 'run_saved': run_saved}
+        return {
+            'runs': '',
+            'auto_enroll': True,
+            'modo': 'audit',
+            'saved': 'saved',
+            'run_saved': run_saved}
 
     def unenroll_user(self, request, lista_run):
         from student.models import CourseEnrollment, CourseEnrollmentAllowed
@@ -547,23 +657,28 @@ class EdxLoginStaff(View, Content, ContentStaff):
                 try:
                     edxlogin_user = EdxLoginUser.objects.get(run=run)
 
-                    registrations = EdxLoginUserCourseRegistration.objects.filter(run=run, course=course_key)
+                    registrations = EdxLoginUserCourseRegistration.objects.filter(
+                        run=run, course=course_key)
                     if registrations:
                         run_unenroll_pending += run + " - "
                         registrations.delete()
 
-                    enrollmentAllowed = CourseEnrollmentAllowed.objects.filter(course_id=course_key, user=edxlogin_user.user)
+                    enrollmentAllowed = CourseEnrollmentAllowed.objects.filter(
+                        course_id=course_key, user=edxlogin_user.user)
                     if enrollmentAllowed:
                         run_unenroll_enroll_allowed += run + " - "
                         enrollmentAllowed.delete()
 
-                    enrollment = CourseEnrollment.get_enrollment(edxlogin_user.user, course_key)
+                    enrollment = CourseEnrollment.get_enrollment(
+                        edxlogin_user.user, course_key)
+                    enrollment.is_active = 0
                     if enrollment:
                         run_unenroll_enroll += run + " - "
-                        enrollment.delete()
+                        enrollment.save()
 
                 except EdxLoginUser.DoesNotExist:
-                    registrations = EdxLoginUserCourseRegistration.objects.filter(run=run, course=course_key)
+                    registrations = EdxLoginUserCourseRegistration.objects.filter(
+                        run=run, course=course_key)
                     if registrations:
                         registrations.delete()
                     else:
@@ -575,7 +690,12 @@ class EdxLoginStaff(View, Content, ContentStaff):
             'run_unenroll_enroll_allowed': run_unenroll_enroll_allowed[:-3],
             'run_no_exists': run_no_exists[:-3],
         }
-        return {'runs': '', 'auto_enroll': True, 'modo': 'honor', 'saved': 'unenroll', 'run_unenroll': run_unenroll}
+        return {
+            'runs': '',
+            'auto_enroll': True,
+            'modo': 'honor',
+            'saved': 'unenroll',
+            'run_unenroll': run_unenroll}
 
     def force_create_user(self, run):
         try:
@@ -595,9 +715,16 @@ class EdxLoginStaff(View, Content, ContentStaff):
         parameters = {
             'rutUsuario': run
         }
-        result = requests.post(settings.EDXLOGIN_USERNAME, data=json.dumps(parameters), headers={'content-type': 'application/json'})
+        result = requests.post(
+            settings.EDXLOGIN_USERNAME,
+            data=json.dumps(parameters),
+            headers={
+                'content-type': 'application/json'})
         if result.status_code != 200:
-            logger.error("{} {}".format(result.request, result.request.headers))
+            logger.error(
+                "{} {}".format(
+                    result.request,
+                    result.request.headers))
             raise Exception("Wrong run {} {}".format(result.status_code, run))
 
         data = json.loads(result.text)
@@ -605,7 +732,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
         if "cuentascorp" in data and len(data["cuentascorp"]) > 0:
             email = data["cuentascorp"]
             for name in email:
-                if name["tipoCuenta"] == "CUENTA PASAPORTE":              
+                if name["tipoCuenta"] == "CUENTA PASAPORTE":
                     username = name["cuentaCorp"] or ""
                     break
         return username
@@ -618,18 +745,24 @@ class EdxLoginExport(View):
 
     def get(self, request):
         data = []
-        users_edxlogin = EdxLoginUser.objects.all().order_by('user__username').values('run', 'user__username', 'user__email')
+        users_edxlogin = EdxLoginUser.objects.all().order_by(
+            'user__username').values('run', 'user__username', 'user__email')
 
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="users.csv"'
 
-        writer = csv.writer(response, delimiter=';', dialect='excel', encoding='utf-8')
+        writer = csv.writer(
+            response,
+            delimiter=';',
+            dialect='excel',
+            encoding='utf-8')
         data.append([])
         data[0].extend(['Run', 'Username', 'Email'])
         i = 1
         for user in users_edxlogin:
             data.append([])
-            data[i].extend([user['run'], user['user__username'], user['user__email']])
+            data[i].extend(
+                [user['run'], user['user__username'], user['user__email']])
             i += 1
         writer.writerows(data)
 
