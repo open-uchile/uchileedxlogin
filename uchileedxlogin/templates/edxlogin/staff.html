@@ -49,20 +49,47 @@
             % if context.get('saved', UNDEFINED) == 'saved':
                 <p style="color:rgb(56, 181, 197); margin-bottom: 15px;">Datos Guardados Correctamente.</p>
                 % if context.get('run_saved', UNDEFINED) is not UNDEFINED:
-                    % if run_saved['run_saved_force'] != "":
-                        <p id="run_saved_force" style="color:rgb(56, 181, 197); margin-bottom: 15px;">Runs Creados e Inscritos: ${run_saved['run_saved_force']}</p>
+                    % if run_saved['run_saved_force'] != "" or run_saved['run_saved_force_no_auto'] != "":
+                        <p style="color:rgb(56, 181, 197); margin-bottom: 15px;">
+                            <b>Usuarios Creados e Inscritos:</b></br>
+                            <% 
+                                run_saved_force = run_saved['run_saved_force'].split('/')
+                                run_saved_force_no_auto = run_saved['run_saved_force_no_auto'].split('/')
+                            %>
+                            <span id="run_saved_force">
+                                %for run in run_saved_force:
+                                    ${run}</br>
+                                %endfor
+                            </span></br>
+                            <span id="run_saved_force_no_auto">
+                                %for run in run_saved_force_no_auto:
+                                    ${run}</br>
+                                %endfor
+                            </span>
+                        </p>
                     % endif
-                    % if run_saved['run_saved_force_no_auto'] != "":
-                        <p id="run_saved_force_no_auto" style="color:rgb(56, 181, 197); margin-bottom: 15px;">Runs Creados e Inscritos sin Auto Enroll:: ${run_saved['run_saved_force_no_auto']}</p>
-                    % endif
+                   
                     % if run_saved['run_saved_pending'] != "":
-                        <p id="run_saved_pending" style="color:rgb(56, 181, 197); margin-bottom: 15px;">Runs no registrados (Pendientes): ${run_saved['run_saved_pending']}</p>
+                        <p id="run_saved_pending" style="color:rgb(56, 181, 197); margin-bottom: 15px;">Runs Pendientes: ${run_saved['run_saved_pending']}</p>
                     % endif
-                    % if run_saved['run_saved_enroll'] != "":
-                        <p id="run_saved_enroll" style="color:rgb(56, 181, 197); margin-bottom: 15px;">Runs Inscritos con Auto Enroll: ${run_saved['run_saved_enroll']}</p>
-                    % endif
-                    % if run_saved['run_saved_enroll_no_auto'] != "":
-                        <p id="run_saved_enroll_no_auto" style="color:rgb(56, 181, 197); margin-bottom: 15px;">Runs Inscritos sin Auto Enroll: ${run_saved['run_saved_enroll_no_auto']}</p>
+                    % if run_saved['run_saved_enroll'] != "" or run_saved['run_saved_enroll_no_auto'] != "":
+                        <p id="run_saved_enroll" style="color:rgb(56, 181, 197); margin-bottom: 15px;">
+                            <b>Usuarios Inscritos:</b></br>
+                            <% 
+                                run_saved_enroll = run_saved['run_saved_enroll'].split('/')
+                                run_saved_enroll_no_auto = run_saved['run_saved_enroll_no_auto'].split('/')
+                            %>
+                            <span id="run_saved_enroll">
+                                %for run in run_saved_enroll:
+                                    ${run}</br>
+                                %endfor
+                            </span></br>
+                            <span id="run_saved_enroll_no_auto">
+                                %for run in run_saved_enroll_no_auto:
+                                    ${run}</br>
+                                %endfor
+                            </span>
+                        </p>
                     % endif
                 % endif
             % endif
