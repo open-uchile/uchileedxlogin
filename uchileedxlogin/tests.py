@@ -1289,7 +1289,7 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEquals(
             r['run_unenroll']['run_unenroll_enroll'],
-            '0000000108')
+            'student - 0000000108')
 
     def test_staff_post_unenroll_allowed(self):
         post_data = {
@@ -1310,7 +1310,7 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEquals(
             r['run_unenroll']['run_unenroll_enroll_allowed'],
-            '0000000108')
+            'student - 0000000108')
 
     def test_staff_post_unenroll_student(self):
         post_data = {
