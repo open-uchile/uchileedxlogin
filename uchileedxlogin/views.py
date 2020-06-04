@@ -602,9 +602,9 @@ class EdxLoginStaff(View, Content, ContentStaff):
                             "course", ""), enroll, request.POST.get(
                             "modes", None))
                     if enroll:
-                        run_saved_enroll += run + " - "
+                        run_saved_enroll += edxlogin_user.user.username + " - " + run + " / "
                     else:
-                        run_saved_enroll_no_auto += run + " - "
+                        run_saved_enroll_no_auto += edxlogin_user.user.username + " - " + run + " / "
                 except EdxLoginUser.DoesNotExist:
                     edxlogin_user = None
                     if force:
@@ -615,9 +615,9 @@ class EdxLoginStaff(View, Content, ContentStaff):
                                 "course", ""), enroll, request.POST.get(
                                 "modes", None))
                         if enroll:
-                            run_saved_force += run + " - "
+                            run_saved_force += edxlogin_user.user.username + " - " + run + " / "
                         else:
-                            run_saved_force_no_auto += run + " - "
+                            run_saved_force_no_auto += edxlogin_user.user.username + " - " + run + " / "
                     else:
                         registro = EdxLoginUserCourseRegistration()
                         registro.run = run
@@ -660,26 +660,27 @@ class EdxLoginStaff(View, Content, ContentStaff):
                     registrations = EdxLoginUserCourseRegistration.objects.filter(
                         run=run, course=course_key)
                     if registrations:
-                        run_unenroll_pending += run + " - "
+                        run_unenroll_pending += edxlogin_user.user.username + " - " + run + " / "
                         registrations.delete()
 
                     enrollmentAllowed = CourseEnrollmentAllowed.objects.filter(
                         course_id=course_key, user=edxlogin_user.user)
                     if enrollmentAllowed:
-                        run_unenroll_enroll_allowed += run + " - "
+                        run_unenroll_enroll_allowed += edxlogin_user.user.username + " - " + run + " / "
                         enrollmentAllowed.delete()
 
                     enrollment = CourseEnrollment.get_enrollment(
                         edxlogin_user.user, course_key)
                     enrollment.is_active = 0
                     if enrollment:
-                        run_unenroll_enroll += run + " - "
+                        run_unenroll_enroll += edxlogin_user.user.username + " - " + run + " / "
                         enrollment.save()
 
                 except EdxLoginUser.DoesNotExist:
                     registrations = EdxLoginUserCourseRegistration.objects.filter(
                         run=run, course=course_key)
                     if registrations:
+                        run_unenroll_pending += " No Registrado - " + run + " / "
                         registrations.delete()
                     else:
                         run_no_exists += run + " - "

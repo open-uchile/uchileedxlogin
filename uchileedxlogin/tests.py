@@ -1104,8 +1104,8 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(aux.run, "0000000108")
         self.assertEquals(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
-        assert_true(
-            "\"run_saved_force\": \"0000000108\"" in response._container[0])
+        r = json.loads(response._container[0])
+        self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
         self.assertEqual(
             mock_created_user.call_args_list[0][0][0],
             {
@@ -1233,8 +1233,8 @@ class TestStaffView(ModuleStoreTestCase):
                 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
                 'rut': '0000000108',
                 'email': 'test@test.test'})
-        assert_true(
-            "\"run_saved_force\": \"0000000108\"" in response._container[0])
+        r = json.loads(response._container[0])
+        self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
 
     def test_staff_post_unenroll_no_db(self):
         post_data = {
@@ -1289,7 +1289,7 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEquals(
             r['run_unenroll']['run_unenroll_enroll'],
-            '0000000108')
+            'student - 0000000108')
 
     def test_staff_post_unenroll_allowed(self):
         post_data = {
@@ -1310,7 +1310,7 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEquals(
             r['run_unenroll']['run_unenroll_enroll_allowed'],
-            '0000000108')
+            'student - 0000000108')
 
     def test_staff_post_unenroll_student(self):
         post_data = {
