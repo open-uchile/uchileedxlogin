@@ -3,7 +3,7 @@
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from django.contrib.sites.shortcuts import get_current_site
 from django.db import transaction
@@ -494,11 +494,13 @@ class EdxLoginCallback(View, Content):
         user_data['username'] = username
         edxlogin_user = self.get_or_create_user(user_data)
         self.enroll_pending_courses(edxlogin_user)
-        login(
-            request,
-            edxlogin_user.user,
-            backend="django.contrib.auth.backends.AllowAllUsersModelBackend",
-        )
+        if request.user.is_anonymous or request.user.id != edxlogin_user.user.id:
+            logout(request)
+            login(
+                request,
+                edxlogin_user.user,
+                backend="django.contrib.auth.backends.AllowAllUsersModelBackend",
+            )
 
     def enroll_pending_courses(self, edxlogin_user):
         """
