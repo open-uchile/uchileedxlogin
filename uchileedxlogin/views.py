@@ -98,10 +98,11 @@ class Content(object):
             data=json.dumps(parameters),
             headers={
                 'content-type': 'application/json'})
-        data = json.loads(result.text)
-        if 'emails' in data:
-            return self.verify_email_principal(data)
-        return'null'
+        if result.status_code == 200:
+            data = json.loads(result.text)
+            if 'emails' in data:
+                return self.verify_email_principal(data)
+        return 'null'
 
     def verify_email_principal(self, data):
         for mail in data['emails']:
