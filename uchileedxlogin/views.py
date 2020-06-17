@@ -12,12 +12,11 @@ from django.shortcuts import render
 from django.urls import reverse
 from django.views.generic.base import View
 from django.http import HttpResponse
-from models import EdxLoginUser, EdxLoginUserCourseRegistration
-from urllib import urlencode
+from .models import EdxLoginUser, EdxLoginUserCourseRegistration
+from urllib.parse import urlencode
 from itertools import cycle
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys import InvalidKeyError
-from requests.auth import HTTPBasicAuth
 from courseware.courses import get_course_by_id, get_course_with_access
 from courseware.access import has_access
 from util.json_request import JsonResponse, JsonResponseBadRequest
@@ -273,8 +272,8 @@ class ContentStaff(object):
         aux = rut[:-1]
         dv = rut[-1:]
 
-        revertido = map(int, reversed(str(aux)))
-        factors = cycle(range(2, 8))
+        revertido = list(map(int, reversed(str(aux))))
+        factors = cycle(list(range(2, 8)))
         s = sum(d * f for d, f in zip(revertido, factors))
         res = (-s) % 11
 
@@ -394,7 +393,7 @@ class ContentStaff(object):
 class EdxLoginLoginRedirect(View):
     def get(self, request):
         redirect_url = request.GET.get('next', "/")
-        if request.user.is_authenticated():
+        if request.user.is_authenticated:
             return HttpResponseRedirect(redirect_url)
 
         return HttpResponseRedirect(
@@ -420,7 +419,7 @@ class EdxLoginLoginRedirect(View):
         Get the callback url
         """
         import base64
-        redirect_url = base64.b64encode(request.GET.get('next', "/"))
+        redirect_url = base64.b64encode(request.GET.get('next', "/").encode())
         url = request.build_absolute_uri(
             reverse('uchileedxlogin-login:callback'))
         return '{}?next={}'.format(url, redirect_url)
@@ -437,7 +436,7 @@ class EdxLoginCallback(View, Content):
         redirect_url = base64.b64decode(
             request.GET.get(
                 'next', "Lw==")).decode('utf-8')
-        if not is_safe_login_or_logout_redirect(request, redirect_url):
+        if not is_safe_login_or_logout_redirect(redirect_url, request.get_host(), None, False):
             redirect_url = "/"
         error_url = reverse('uchileedxlogin-login:login')
 
@@ -494,6 +493,7 @@ class EdxLoginCallback(View, Content):
         user_data = self.get_user_data(username)
         user_data['username'] = username
         edxlogin_user = self.get_or_create_user(user_data)
+        edxlogin_user = EdxLoginUser.objects.get(run='019027537K')
         self.enroll_pending_courses(edxlogin_user)
         if request.user.is_anonymous or request.user.id != edxlogin_user.user.id:
             logout(request)

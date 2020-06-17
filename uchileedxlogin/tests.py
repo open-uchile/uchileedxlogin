@@ -8,8 +8,7 @@ from django.test import Client
 from django.conf import settings
 from django.contrib.auth.models import Permission, User
 from django.contrib.contenttypes.models import ContentType
-from urlparse import parse_qs
-from openedx.core.lib.tests.tools import assert_true
+from urllib.parse import parse_qs
 from opaque_keys.edx.locator import CourseLocator
 from student.tests.factories import CourseEnrollmentAllowedFactory, UserFactory, CourseEnrollmentFactory
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
@@ -19,7 +18,7 @@ from openedx.core.djangoapps.content.course_overviews.models import CourseOvervi
 from student.roles import CourseInstructorRole, CourseStaffRole
 import re
 import json
-import urlparse
+import urllib.parse
 
 from .views import EdxLoginLoginRedirect, EdxLoginCallback, EdxLoginStaff
 from .models import EdxLoginUserCourseRegistration, EdxLoginUser
@@ -37,21 +36,21 @@ class TestRedirectView(TestCase):
 
     def test_return_request(self):
         result = self.client.get(reverse('uchileedxlogin-login:login'))
-        request = urlparse.urlparse(result.url)
-        args = urlparse.parse_qs(request.query)
+        request = urllib.parse.urlparse(result.url)
+        args = urllib.parse.parse_qs(request.query)
 
         self.assertEqual(result.status_code, 302)
         self.assertEqual(request.netloc, '172.25.14.193:9513')
         self.assertEqual(request.path, '/login')
         self.assertEqual(
             args['service'][0],
-            'http://testserver/uchileedxlogin/callback/?next=Lw==')
+            "http://testserver/uchileedxlogin/callback/?next=b'Lw=='")
 
     def test_redirect_already_logged(self):
         user = User.objects.create_user(username='testuser', password='123')
         self.client.login(username='testuser', password='123')
         result = self.client.get(reverse('uchileedxlogin-login:login'))
-        request = urlparse.urlparse(result.url)
+        request = urllib.parse.urlparse(result.url)
         self.assertEqual(request.path, '/')
 
 
@@ -483,7 +482,7 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'wrongticket'})
-        request = urlparse.urlparse(result.url)
+        request = urllib.parse.urlparse(result.url)
         self.assertEqual(request.path, '/uchileedxlogin/login/')
 
     @patch('requests.post')
@@ -511,7 +510,7 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        request = urlparse.urlparse(result.url)
+        request = urllib.parse.urlparse(result.url)
         self.assertEqual(request.path, '/uchileedxlogin/login/')
 
     @patch(
@@ -707,7 +706,7 @@ class TestStaffView(ModuleStoreTestCase):
                 email='instructor_staff@edx.org')
             self.instructor_staff.user_permissions.add(permission)
             self.instructor_staff_client = Client()
-            assert_true(
+            self.assertTrue(
                 self.instructor_staff_client.login(
                     username='instructor_staff',
                     password='12345'))
@@ -723,7 +722,7 @@ class TestStaffView(ModuleStoreTestCase):
                 user=self.staff_user,
                 course_id=self.course.id)
             CourseStaffRole(self.course.id).add_users(self.staff_user)
-            assert_true(
+            self.assertTrue(
                 self.staff_user_client.login(
                     username='staff_user',
                     password='12345'))
@@ -736,7 +735,7 @@ class TestStaffView(ModuleStoreTestCase):
                 email='student@edx.org')
             CourseEnrollmentFactory(
                 user=self.student, course_id=self.course.id)
-            assert_true(
+            self.assertTrue(
                 self.student_client.login(
                     username='student',
                     password='12345'))
@@ -748,7 +747,7 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.get(reverse('uchileedxlogin-login:staff'))
         request = response.request
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
 
     def test_staff_post(self):
@@ -762,14 +761,14 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
         aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
 
         self.assertEqual(aux.run, "0000000108")
         self.assertEqual(aux.mode, 'audit')
         self.assertEqual(aux.auto_enroll, True)
-        self.assertEquals(
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 1)
 
     def test_staff_post_multiple_run(self):
@@ -783,7 +782,7 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
         aux = EdxLoginUserCourseRegistration.objects.filter(run="0000000108")
         for var in aux:
@@ -791,7 +790,7 @@ class TestStaffView(ModuleStoreTestCase):
             self.assertEqual(var.mode, 'audit')
             self.assertEqual(var.auto_enroll, True)
 
-        self.assertEquals(
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 5)
 
     def test_staff_post_sin_curso(self):
@@ -805,9 +804,9 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
-        assert_true("id=\"curso2\"" in response._container[0])
-        self.assertEquals(
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"curso2\"" in response._container[0].decode())
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_sin_run(self):
@@ -821,9 +820,9 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
-        assert_true("id=\"no_run\"" in response._container[0])
-        self.assertEquals(
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"no_run\"" in response._container[0].decode())
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_run_malo(self):
@@ -837,9 +836,9 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
-        assert_true("id=\"run_malos\"" in response._container[0])
-        self.assertEquals(
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"run_malos\"" in response._container[0].decode())
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_exits_user_enroll(self):
@@ -854,10 +853,10 @@ class TestStaffView(ModuleStoreTestCase):
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
         request = response.request
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
-        assert_true("id=\"run_saved_enroll\"" in response._container[0])
+        self.assertTrue("id=\"run_saved_enroll\"" in response._container[0].decode())
 
     def test_staff_post_exits_user_no_enroll(self):
         post_data = {
@@ -870,11 +869,11 @@ class TestStaffView(ModuleStoreTestCase):
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
         request = response.request
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
-        assert_true(
-            "id=\"run_saved_enroll_no_auto\"" in response._container[0])
+        self.assertTrue(
+            "id=\"run_saved_enroll_no_auto\"" in response._container[0].decode())
 
     @patch(
         "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
@@ -927,12 +926,12 @@ class TestStaffView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:staff'), post_data)
         request = response.request
 
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
-        assert_true("id=\"run_saved_force\"" in response._container[0])
-        assert_true("id=\"run_saved_enroll\"" not in response._container[0])
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
         self.assertEqual(
             mock_created_user.call_args_list[0][0][0],
             {
@@ -995,12 +994,12 @@ class TestStaffView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:staff'), post_data)
         request = response.request
 
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
-        assert_true("id=\"run_saved_force_no_auto\"" in response._container[0])
-        assert_true(
-            "id=\"run_saved_enroll_no_auto\"" not in response._container[0])
+        self.assertTrue("id=\"run_saved_force_no_auto\"" in response._container[0].decode())
+        self.assertTrue(
+            "id=\"run_saved_enroll_no_auto\"" not in response._container[0].decode())
         self.assertEqual(
             mock_created_user.call_args_list[0][0][0],
             {
@@ -1049,15 +1048,15 @@ class TestStaffView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:staff'), post_data)
         request = response.request
 
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
         aux = EdxLoginUserCourseRegistration.objects.get(run="0000000108")
 
         self.assertEqual(aux.run, '0000000108')
         self.assertEqual(aux.auto_enroll, True)
-        self.assertEquals(
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 1)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
-        assert_true("id=\"run_saved_pending\"" in response._container[0])
+        self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
 
     def test_staff_post_no_action_params(self):
         post_data = {
@@ -1069,10 +1068,10 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        r = json.loads(response._container[0])
-        self.assertEquals(response.status_code, 400)
-        self.assertEquals(r['parameters'], ["action"])
-        self.assertEquals(r['info'], {"action": ""})
+        r = json.loads(response._container[0].decode())
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(r['parameters'], ["action"])
+        self.assertEqual(r['info'], {"action": ""})
 
     def test_staff_post_wrong_action_params(self):
         post_data = {
@@ -1085,10 +1084,10 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        r = json.loads(response._container[0])
-        self.assertEquals(response.status_code, 400)
-        self.assertEquals(r['parameters'], ["action"])
-        self.assertEquals(r['info'], {"action": "test"})
+        r = json.loads(response._container[0].decode())
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(r['parameters'], ["action"])
+        self.assertEqual(r['info'], {"action": "test"})
 
     @patch(
         "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
@@ -1139,14 +1138,14 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.staff_user_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
         aux = EdxLoginUser.objects.get(run="0000000108")
 
         self.assertEqual(aux.run, "0000000108")
-        self.assertEquals(
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
-        r = json.loads(response._container[0])
+        r = json.loads(response._container[0].decode())
         self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
         self.assertEqual(
             mock_created_user.call_args_list[0][0][0],
@@ -1207,7 +1206,7 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.instructor_staff_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 404)
+        self.assertEqual(response.status_code, 404)
 
     @patch(
         "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
@@ -1258,12 +1257,12 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client_instructor.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 200)
+        self.assertEqual(response.status_code, 200)
 
         aux = EdxLoginUser.objects.get(run="0000000108")
 
         self.assertEqual(aux.run, "0000000108")
-        self.assertEquals(
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
         self.assertEqual(
             mock_created_user.call_args_list[0][0][0],
@@ -1275,7 +1274,7 @@ class TestStaffView(ModuleStoreTestCase):
                 'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
                 'rut': '0000000108',
                 'email': 'test@test.test'})
-        r = json.loads(response._container[0])
+        r = json.loads(response._container[0].decode())
         self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
 
     def test_staff_post_unenroll_no_db(self):
@@ -1288,10 +1287,10 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        r = json.loads(response._container[0])
+        r = json.loads(response._container[0].decode())
 
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(r['run_unenroll']['run_no_exists'], '0000000108')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(r['run_unenroll']['run_no_exists'], '0000000108')
 
     def test_staff_post_unenroll_edxlogincourse(self):
         post_data = {
@@ -1307,13 +1306,13 @@ class TestStaffView(ModuleStoreTestCase):
             mode="audit",
             auto_enroll=True)
 
-        self.assertEquals(
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 1)
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
 
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_unenroll_enrollment(self):
@@ -1326,10 +1325,10 @@ class TestStaffView(ModuleStoreTestCase):
         EdxLoginUser.objects.create(user=self.student, run='0000000108')
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        r = json.loads(response._container[0])
+        r = json.loads(response._container[0].decode())
 
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
             r['run_unenroll']['run_unenroll_enroll'],
             'student - 0000000108')
 
@@ -1347,10 +1346,10 @@ class TestStaffView(ModuleStoreTestCase):
             user=self.student)
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        r = json.loads(response._container[0])
+        r = json.loads(response._container[0].decode())
 
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
             r['run_unenroll']['run_unenroll_enroll_allowed'],
             'student - 0000000108')
 
@@ -1365,7 +1364,7 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.student_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 404)
+        self.assertEqual(response.status_code, 404)
 
     @patch(
         "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
@@ -1385,4 +1384,4 @@ class TestStaffView(ModuleStoreTestCase):
 
         response = self.student_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
-        self.assertEquals(response.status_code, 404)
+        self.assertEqual(response.status_code, 404)
