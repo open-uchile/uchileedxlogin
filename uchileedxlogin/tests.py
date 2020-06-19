@@ -35,6 +35,9 @@ class TestRedirectView(TestCase):
         self.assertEqual(result.status_code, 302)
 
     def test_return_request(self):
+        """
+            Test if return request is correct
+        """
         result = self.client.get(reverse('uchileedxlogin-login:login'))
         request = urllib.parse.urlparse(result.url)
         args = urllib.parse.parse_qs(request.query)
@@ -47,6 +50,9 @@ class TestRedirectView(TestCase):
             "http://testserver/uchileedxlogin/callback/?next=b'Lw=='")
 
     def test_redirect_already_logged(self):
+        """
+            Test redirect when the user is already logged
+        """
         user = User.objects.create_user(username='testuser', password='123')
         self.client.login(username='testuser', password='123')
         result = self.client.get(reverse('uchileedxlogin-login:login'))
@@ -86,6 +92,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_parameters(self, get, post):
+        """
+            Test normal process
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -132,6 +141,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user(self, get, post, mock_created_user):
+        """
+            Test create user normal process
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -174,6 +186,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user_no_email(self, get, post, mock_created_user):
+        """
+            Test create user when email is empty
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -211,6 +226,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user_wrong_email(self, get, post, mock_created_user):
+        """
+            Test create user when email is wrong
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -253,6 +271,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user_fail_email_404(self, get, post, mock_created_user):
+        """
+            Test create user when get email fail
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -295,6 +316,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user_null_email(self, get, post, mock_created_user):
+        """
+            Test create user when email is Null
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -333,6 +357,9 @@ class TestCallbackView(TestCase):
     @patch('requests.get')
     def test_login_create_user_wrong_email_principal(
             self, get, post, mock_created_user):
+        """
+            Test create user when principal email is wrong
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -380,6 +407,9 @@ class TestCallbackView(TestCase):
     @patch('requests.get')
     def test_login_create_user_no_email_principal(
             self, get, post, mock_created_user):
+        """
+            Test create user when principal email is empty
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -423,6 +453,9 @@ class TestCallbackView(TestCase):
     @patch('requests.get')
     def test_login_create_user_no_email_alternativo(
             self, get, post, mock_created_user):
+        """
+            Test create user when email is empty
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -457,6 +490,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_wrong_ticket(self, get, post):
+        """
+            Test callback when ticket is wrong
+        """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
@@ -488,6 +524,9 @@ class TestCallbackView(TestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_login_wrong_username(self, get, post):
+        """
+            Test callback when username is wrong
+        """
         # Assert requests.get calls
         get.side_effect = [
             namedtuple(
@@ -517,6 +556,9 @@ class TestCallbackView(TestCase):
         "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
         side_effect=create_user)
     def test_generate_username(self, _):
+        """
+            Test callback generate username normal process
+        """
         data = {
             'username': 'test.name',
             'apellidoMaterno': 'dd',
@@ -564,6 +606,9 @@ class TestCallbackView(TestCase):
         "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
         side_effect=create_user)
     def test_long_name(self, _):
+        """
+            Test callback generate username long name
+        """
         data = {
             'username': 'test.name',
             'apellidoMaterno': 'ff',
@@ -578,6 +623,9 @@ class TestCallbackView(TestCase):
             data).username, 'a2345678901234567890123_41')
 
     def test_null_lastname(self):
+        """
+            Test callback generate username when lastname is null
+        """
         user_data = {
             "nombres": "Name",
             "apellidoPaterno": None,
@@ -598,6 +646,9 @@ class TestCallbackView(TestCase):
         "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
         side_effect=create_user)
     def test_long_name_middle(self, _):
+        """
+            Test callback generate username when long name middle
+        """
         data = {
             'username': 'test.name',
             'apellidoMaterno': 'ff',
@@ -616,6 +667,9 @@ class TestCallbackView(TestCase):
     @patch("requests.post")
     @patch('requests.get')
     def test_test(self, get, post, _):
+        """
+            Test callback enroll when user have pending course with auto enroll and not auto enroll
+        """
         EdxLoginUserCourseRegistration.objects.create(
             run='0112223334',
             course="course-v1:test+TEST+2019-2",
@@ -744,13 +798,18 @@ class TestStaffView(ModuleStoreTestCase):
         result = self.client.get(reverse('uchileedxlogin-login:staff'))
 
     def test_staff_get(self):
-
+        """
+            Test staff view
+        """
         response = self.client.get(reverse('uchileedxlogin-login:staff'))
         request = response.request
         self.assertEqual(response.status_code, 200)
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
 
     def test_staff_post(self):
+        """
+            Test staff view post normal process
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '10-8',
@@ -772,6 +831,9 @@ class TestStaffView(ModuleStoreTestCase):
             EdxLoginUserCourseRegistration.objects.all().count(), 1)
 
     def test_staff_post_multiple_run(self):
+        """
+            Test staff view post with multiple 'run'
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '10-8\n10-8\n10-8\n10-8\n10-8',
@@ -794,6 +856,9 @@ class TestStaffView(ModuleStoreTestCase):
             EdxLoginUserCourseRegistration.objects.all().count(), 5)
 
     def test_staff_post_sin_curso(self):
+        """
+            Test staff view post when course is empty
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '10-8',
@@ -810,6 +875,9 @@ class TestStaffView(ModuleStoreTestCase):
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_sin_run(self):
+        """
+            Test staff view post when 'runs' is empty
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '',
@@ -826,6 +894,9 @@ class TestStaffView(ModuleStoreTestCase):
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_run_malo(self):
+        """
+            Test staff view post when 'runs' is wrong
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '12345678-9',
@@ -842,6 +913,9 @@ class TestStaffView(ModuleStoreTestCase):
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_exits_user_enroll(self):
+        """
+            Test staff view post with auto enroll
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '9472337-k',
@@ -859,6 +933,9 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue("id=\"run_saved_enroll\"" in response._container[0].decode())
 
     def test_staff_post_exits_user_no_enroll(self):
+        """
+            Test staff view post without auto enroll
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '9472337-k',
@@ -881,6 +958,9 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_staff_post_force_enroll(self, get, post, mock_created_user):
+        """
+            Test staff view post with force enroll normal process
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '10-8',
@@ -949,6 +1029,9 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_staff_post_force_no_enroll(self, get, post, mock_created_user):
+        """
+            Test staff view post with force enroll without auto enroll
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '10-8',
@@ -1017,6 +1100,9 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_staff_post_force_no_user(self, get, post, mock_created_user):
+        """
+            Test staff view post with force enroll when fail get username
+        """
         post_data = {
             'action': "staff_enroll",
             'runs': '10-8',
@@ -1059,6 +1145,9 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
 
     def test_staff_post_no_action_params(self):
+        """
+            Test staff view post without action
+        """
         post_data = {
             'runs': '10-8',
             'course': self.course.id,
@@ -1074,6 +1163,9 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(r['info'], {"action": ""})
 
     def test_staff_post_wrong_action_params(self):
+        """
+            Test staff view post with wrong action 
+        """
         post_data = {
             'action': "test",
             'runs': '10-8',
@@ -1095,6 +1187,9 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_staff_post_staff_course(self, get, post, mock_created_user):
+        """
+            Test staff view post when user is staff course
+        """
         post_data = {
             'action': "enroll",
             'runs': '10-8',
@@ -1164,6 +1259,9 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_staff_post_instructor_staff(self, get, post, mock_created_user):
+        """
+            Test staff view post when user have permission
+        """
         post_data = {
             'action': "enroll",
             'runs': '10-8',
@@ -1214,6 +1312,9 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_staff_post_instructor(self, get, post, mock_created_user):
+        """
+            Test staff view post when user is instructor
+        """
         post_data = {
             'action': "enroll",
             'runs': '10-8',
@@ -1278,6 +1379,9 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
 
     def test_staff_post_unenroll_no_db(self):
+        """
+            Test staff view post unenroll when user no exists
+        """
         post_data = {
             'action': "unenroll",
             'runs': '10-8',
@@ -1293,6 +1397,9 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(r['run_unenroll']['run_no_exists'], '0000000108')
 
     def test_staff_post_unenroll_edxlogincourse(self):
+        """
+            Test staff view post unenroll when user have edxlogincourse 
+        """
         post_data = {
             'action': "unenroll",
             'runs': '10-8',
@@ -1316,6 +1423,9 @@ class TestStaffView(ModuleStoreTestCase):
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_unenroll_enrollment(self):
+        """
+            Test staff view post unenroll when user have enrollment 
+        """
         post_data = {
             'action': "unenroll",
             'runs': '10-8',
@@ -1333,6 +1443,9 @@ class TestStaffView(ModuleStoreTestCase):
             'student - 0000000108')
 
     def test_staff_post_unenroll_allowed(self):
+        """
+            Test staff view post unenroll when user have CourseEnrollmentAllowed 
+        """
         post_data = {
             'action': "unenroll",
             'runs': '10-8',
@@ -1354,6 +1467,9 @@ class TestStaffView(ModuleStoreTestCase):
             'student - 0000000108')
 
     def test_staff_post_unenroll_student(self):
+        """
+            Test staff view post unenroll when user is student 
+        """
         post_data = {
             'action': "unenroll",
             'runs': '10-8',
@@ -1372,6 +1488,9 @@ class TestStaffView(ModuleStoreTestCase):
     @patch('requests.post')
     @patch('requests.get')
     def test_staff_post_enroll_student(self, get, post, mock_created_user):
+        """
+            Test staff view post enroll when user is student 
+        """
         post_data = {
             'action': "enroll",
             'runs': '10-8',

@@ -104,6 +104,9 @@ class Content(object):
         return 'null'
 
     def verify_email_principal(self, data):
+        """
+            Verify if data have principal email
+        """
         for mail in data['emails']:
             if mail['nombreTipoEmail'] == 'PRINCIPAL':
                 if mail['email'] is not None and re.match(
@@ -114,6 +117,9 @@ class Content(object):
         return self.verify_email_alternativo(data)
 
     def verify_email_alternativo(self, data):
+        """
+            Verify if data have alternative email
+        """
         for mail in data['emails']:
             if mail['nombreTipoEmail'] == 'ALTERNATIVO':
                 if mail['email'] is not None and re.match(
@@ -265,6 +271,9 @@ class Content(object):
 
 class ContentStaff(object):
     def validarRut(self, rut):
+        """
+            Verify if the 'rut' is valid
+        """
         rut = rut.upper()
         rut = rut.replace("-", "")
         rut = rut.replace(".", "")
@@ -285,6 +294,9 @@ class ContentStaff(object):
             return False
 
     def validate_course(self, id_curso):
+        """
+            Verify if course.id exists
+        """
         from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
         try:
             aux = CourseKey.from_string(id_curso)
@@ -293,6 +305,9 @@ class ContentStaff(object):
             return False
 
     def validate_data(self, request, lista_run, context, force):
+        """
+            Verify if the data if valid
+        """
         run_malos = ""
         # validacion de los run
         for run in lista_run:
@@ -360,6 +375,9 @@ class ContentStaff(object):
                 user=edxlogin_user.user)
 
     def is_course_staff(self, request, course_id):
+        """
+            Verify if the user is staff course
+        """
         try:
             course_key = CourseKey.from_string(course_id)
             course = get_course_with_access(request.user, "load", course_key)
@@ -369,6 +387,9 @@ class ContentStaff(object):
             return False
 
     def is_instructor(self, request, course_id):
+        """
+            Verify if the user is instructor
+        """
         try:
             course_key = CourseKey.from_string(course_id)
             course = get_course_with_access(request.user, "load", course_key)
@@ -378,6 +399,9 @@ class ContentStaff(object):
             return False
 
     def validate_user(self, request, course_id):
+        """
+            Verify if the user have permission
+        """
         access = False
         if not request.user.is_anonymous:
             if request.user.has_perm('uchileedxlogin.uchile_instructor_staff'):
@@ -523,7 +547,9 @@ class EdxLoginCallback(View, Content):
 
 
 class EdxLoginStaff(View, Content, ContentStaff):
-
+    """
+        Enroll/force enroll/unenroll user
+    """
     def get(self, request):
         course_id = request.GET.get("course", "")
         if self.validate_user(request, course_id):
@@ -587,6 +613,9 @@ class EdxLoginStaff(View, Content, ContentStaff):
             raise Http404()
 
     def enroll_or_create_user(self, request, lista_run, force, enroll):
+        """
+            Enroll/force enroll users
+        """
         run_saved_force = ""
         run_saved_force_no_auto = ""
         run_saved_pending = ""
@@ -643,6 +672,9 @@ class EdxLoginStaff(View, Content, ContentStaff):
             'run_saved': run_saved}
 
     def unenroll_user(self, request, lista_run):
+        """
+            Unenroll user
+        """
         from student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         run_unenroll_pending = ""
@@ -701,6 +733,9 @@ class EdxLoginStaff(View, Content, ContentStaff):
             'run_unenroll': run_unenroll}
 
     def force_create_user(self, run):
+        """
+            Get user data and create the user
+        """
         try:
             username = self.get_username(run)
             user_data = self.get_user_data(username)
