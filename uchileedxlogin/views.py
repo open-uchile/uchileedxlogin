@@ -383,7 +383,7 @@ class ContentStaff(object):
             course = get_course_with_access(request.user, "load", course_key)
 
             return bool(has_access(request.user, 'staff', course))
-        except InvalidKeyError:
+        except Exception:
             return False
 
     def is_instructor(self, request, course_id):
@@ -395,7 +395,7 @@ class ContentStaff(object):
             course = get_course_with_access(request.user, "load", course_key)
 
             return bool(has_access(request.user, 'instructor', course))
-        except InvalidKeyError:
+        except Exception:
             return False
 
     def validate_user(self, request, course_id):

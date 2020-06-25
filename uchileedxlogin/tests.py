@@ -873,6 +873,25 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue("id=\"curso2\"" in response._container[0].decode())
         self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
+    
+    def test_staff_post_wrong_course(self):
+        """
+            Test staff view post when course is wrong
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': 'course-v1:tet+MSS001+2009_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"error_curso\"" in response._container[0].decode())
+        self.assertEqual(
+            EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
     def test_staff_post_sin_run(self):
         """
