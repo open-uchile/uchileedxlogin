@@ -1523,3 +1523,89 @@ class TestStaffView(ModuleStoreTestCase):
         response = self.student_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEqual(response.status_code, 404)
+    
+    def test_staff_post_passport(self):
+        """
+            Test staff view post normal process with passport
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': 'P12345',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEqual(response.status_code, 200)
+
+        aux = EdxLoginUserCourseRegistration.objects.get(run="P12345")
+
+        self.assertEqual(aux.run, "P12345")
+        self.assertEqual(aux.mode, 'audit')
+        self.assertEqual(aux.auto_enroll, True)
+        self.assertEqual(
+            EdxLoginUserCourseRegistration.objects.all().count(), 1)
+
+    def test_staff_post_CG(self):
+        """
+            Test staff view post normal process with passport
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': 'CG12345678',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEqual(response.status_code, 200)
+
+        aux = EdxLoginUserCourseRegistration.objects.get(run="CG12345678")
+
+        self.assertEqual(aux.run, "CG12345678")
+        self.assertEqual(aux.mode, 'audit')
+        self.assertEqual(aux.auto_enroll, True)
+        self.assertEqual(
+            EdxLoginUserCourseRegistration.objects.all().count(), 1)
+
+    def test_staff_post_wrong_passport(self):
+        """
+            Test staff view post when 'runs' is wrong
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': 'P213',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"run_malos\"" in response._container[0].decode())
+        self.assertEqual(
+            EdxLoginUserCourseRegistration.objects.all().count(), 0)
+
+    def test_staff_post_wrong_CG(self):
+        """
+            Test staff view post when 'runs' is wrong
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': 'CG128',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"run_malos\"" in response._container[0].decode())
+        self.assertEqual(
+            EdxLoginUserCourseRegistration.objects.all().count(), 0)
