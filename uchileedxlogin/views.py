@@ -315,6 +315,9 @@ class ContentStaff(object):
                 if run[0] == 'P':
                     if 5 > len(run[1:]) or len(run[1:]) > 20:
                         run_malos += run + " - "
+                elif run[0:2] == 'CG':
+                    if len(run) != 10:
+                        run_malos += run + " - "
                 else:
                     if not self.validarRut(run):
                         run_malos += run + " - "
@@ -624,7 +627,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
         # guarda el form
         with transaction.atomic():
             for run in lista_run:
-                while len(run) < 10 and 'P' != run[0]:
+                while len(run) < 10 and 'P' != run[0] and 'CG' != run[0:2]:
                     run = "0" + run
                 try:
                     edxlogin_user = EdxLoginUser.objects.get(run=run)
