@@ -446,7 +446,7 @@ class EdxLoginLoginRedirect(View):
         Get the callback url
         """
         import base64
-        redirect_url = base64.b64encode(request.GET.get('next', "/").encode())
+        redirect_url = base64.b64encode(request.GET.get('next', "/").encode("utf-8")).decode("utf-8")
         url = request.build_absolute_uri(
             reverse('uchileedxlogin-login:callback'))
         return '{}?next={}'.format(url, redirect_url)
