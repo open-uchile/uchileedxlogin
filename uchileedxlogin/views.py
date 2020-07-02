@@ -507,7 +507,7 @@ class EdxLoginCallback(View, Content):
                 'content-type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'curl/7.58.0'})
         if result.status_code == 200:
-            r = result.content.split('\n')
+            r = result.content.decode('utf-8').split('\n')
             if r[0] == 'yes':
                 return r[1]
 
