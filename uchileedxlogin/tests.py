@@ -47,7 +47,7 @@ class TestRedirectView(TestCase):
         self.assertEqual(request.path, '/login')
         self.assertEqual(
             args['service'][0],
-            "http://testserver/uchileedxlogin/callback/?next=b'Lw=='")
+            "http://testserver/uchileedxlogin/callback/?next=Lw==")
 
     def test_redirect_already_logged(self):
         """
