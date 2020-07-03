@@ -59,35 +59,12 @@ class TestRedirectView(TestCase):
         request = urllib.parse.urlparse(result.url)
         self.assertEqual(request.path, '/')
 
-
-def create_user(user_data):
-    return User.objects.create_user(
-        username=EdxLoginCallback().generate_username(user_data),
-        email=user_data['email'])
-
-
-def create_user2(user_data):
-    return User.objects.create_user(
-        username=EdxLoginStaff().generate_username(user_data),
-        email=user_data['email'])
-
-
-class TestCallbackView(TestCase):
+class TestCallbackView(ModuleStoreTestCase):
     def setUp(self):
+        super(TestCallbackView, self).setUp()
         self.client = Client()
         result = self.client.get(reverse('uchileedxlogin-login:login'))
 
-        self.modules = {
-            'student': MagicMock(),
-            'student.forms': MagicMock(),
-            'student.helpers': MagicMock(),
-            'student.models': MagicMock(),
-        }
-        self.module_patcher = patch.dict('sys.modules', self.modules)
-        self.module_patcher.start()
-
-    def tearDown(self):
-        self.module_patcher.stop()
 
     @patch('requests.post')
     @patch('requests.get')
@@ -135,12 +112,9 @@ class TestCallbackView(TestCase):
             post.call_args_list[0][0][0],
             settings.EDXLOGIN_USER_EMAIL)
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user(self, get, post, mock_created_user):
+    def test_login_create_user(self, get, post):
         """
             Test create user normal process
         """
@@ -169,23 +143,13 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'test@test.test'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user_no_email(self, get, post, mock_created_user):
+    def test_login_create_user_no_email(self, get, post):
         """
             Test create user when email is empty
         """
@@ -209,23 +173,13 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'null'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user_wrong_email(self, get, post, mock_created_user):
+    def test_login_create_user_wrong_email(self, get, post):
         """
             Test create user when email is wrong
         """
@@ -254,23 +208,13 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'null'})
-    
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
+
     @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user_fail_email_404(self, get, post, mock_created_user):
+    def test_login_create_user_fail_email_404(self, get, post):
         """
             Test create user when get email fail
         """
@@ -299,23 +243,13 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'null'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user_null_email(self, get, post, mock_created_user):
+    def test_login_create_user_null_email(self, get, post):
         """
             Test create user when email is Null
         """
@@ -339,24 +273,14 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'null'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user_wrong_email_principal(
-            self, get, post, mock_created_user):
+            self, get, post):
         """
             Test create user when principal email is wrong
         """
@@ -389,24 +313,14 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'test@test.test'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user_no_email_principal(
-            self, get, post, mock_created_user):
+            self, get, post):
         """
             Test create user when principal email is empty
         """
@@ -435,24 +349,14 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'test@test.test'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch('requests.post')
     @patch('requests.get')
     def test_login_create_user_no_email_alternativo(
-            self, get, post, mock_created_user):
+            self, get, post):
         """
             Test create user when email is empty
         """
@@ -476,16 +380,9 @@ class TestCallbackView(TestCase):
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'test.name',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0112223334',
-                'email': 'null'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
 
     @patch('requests.post')
     @patch('requests.get')
@@ -552,10 +449,7 @@ class TestCallbackView(TestCase):
         request = urllib.parse.urlparse(result.url)
         self.assertEqual(request.path, '/uchileedxlogin/login/')
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
-    def test_generate_username(self, _):
+    def test_generate_username(self):
         """
             Test callback generate username normal process
         """
@@ -566,46 +460,43 @@ class TestCallbackView(TestCase):
             'apellidoPaterno': 'cc',
             'nombreCompleto': 'aa bb cc dd',
             'rut': '0112223334',
-            'email': 'test@test.test'
+            'email': 'null'
         }
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_cc')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_cc_d')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_cc_dd')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_b_cc')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_bb_cc')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_b_cc_d')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_b_cc_dd')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_bb_cc_d')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_bb_cc_dd')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_cc1')
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(data).username,
+            EdxLoginCallback().create_user_by_data(dict(data)).username,
             'aa_cc2')
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
-    def test_long_name(self, _):
+    def test_long_name(self):
         """
             Test callback generate username long name
         """
@@ -642,10 +533,7 @@ class TestCallbackView(TestCase):
             EdxLoginCallback().generate_username(user_data),
             "Name_Last")
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
-    def test_long_name_middle(self, _):
+    def test_long_name_middle(self):
         """
             Test callback generate username when long name middle
         """
@@ -661,23 +549,32 @@ class TestCallbackView(TestCase):
         self.assertEqual(EdxLoginCallback().create_user_by_data(
             data).username, 'a234567890123456789012341')
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginCallback.create_user_by_data",
-        side_effect=create_user)
     @patch("requests.post")
     @patch('requests.get')
-    def test_test(self, get, post, _):
+    def test_test(self, get, post):
         """
             Test callback enroll when user have pending course with auto enroll and not auto enroll
         """
+        self.course = CourseFactory.create(
+            org='mss',
+            course='999',
+            display_name='2020',
+            emit_signals=True)
+        aux = CourseOverview.get_from_id(self.course.id)
+        self.course_allowed = CourseFactory.create(
+            org='mss',
+            course='888',
+            display_name='2019',
+            emit_signals=True)
+        aux = CourseOverview.get_from_id(self.course_allowed.id)
         EdxLoginUserCourseRegistration.objects.create(
             run='0112223334',
-            course="course-v1:test+TEST+2019-2",
+            course=self.course.id,
             mode="honor",
             auto_enroll=True)
         EdxLoginUserCourseRegistration.objects.create(
             run='0112223334',
-            course="course-v1:test+TEST+2019-4",
+            course=self.course_allowed.id,
             mode="honor",
             auto_enroll=False)
 
@@ -700,20 +597,12 @@ class TestCallbackView(TestCase):
                                                                          "email": "test@test.test",
                                                                          "codigoTipoEmail": "1",
                                                                          "nombreTipoEmail": "PRINCIPAL"}]}))]
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 2)
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
-        self.assertEqual(
-            self.modules['student.models'].CourseEnrollment.method_calls[0][1][1],
-            CourseLocator.from_string("course-v1:test+TEST+2019-2"))
-        _, _, kwargs = self.modules['student.models'].CourseEnrollmentAllowed.mock_calls[0]
-        self.assertEqual(
-            kwargs['course_id'],
-            CourseLocator.from_string("course-v1:test+TEST+2019-4"))
-
 
 class TestStaffView(ModuleStoreTestCase):
 
@@ -873,7 +762,7 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue("id=\"curso2\"" in response._container[0].decode())
         self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
-    
+
     def test_staff_post_wrong_course(self):
         """
             Test staff view post when course is wrong
@@ -971,12 +860,9 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue(
             "id=\"run_saved_enroll_no_auto\"" in response._container[0].decode())
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
-        side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_enroll(self, get, post, mock_created_user):
+    def test_staff_post_force_enroll(self, get, post):
         """
             Test staff view post with force enroll normal process
         """
@@ -1031,23 +917,13 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
         self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
         self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'avilio.perez',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0000000108',
-                'email': 'test@test.test'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
-        side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_no_enroll(self, get, post, mock_created_user):
+    def test_staff_post_force_no_enroll(self, get, post):
         """
             Test staff view post with force enroll without auto enroll
         """
@@ -1102,23 +978,13 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue("id=\"run_saved_force_no_auto\"" in response._container[0].decode())
         self.assertTrue(
             "id=\"run_saved_enroll_no_auto\"" not in response._container[0].decode())
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'avilio.perez',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0000000108',
-                'email': 'test@test.test'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
-        side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_no_user(self, get, post, mock_created_user):
+    def test_staff_post_force_no_user(self, get, post):
         """
             Test staff view post with force enroll when fail get username
         """
@@ -1200,12 +1066,9 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(r['parameters'], ["action"])
         self.assertEqual(r['info'], {"action": "test"})
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
-        side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_staff_course(self, get, post, mock_created_user):
+    def test_staff_post_staff_course(self, get, post):
         """
             Test staff view post when user is staff course
         """
@@ -1260,24 +1123,12 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
         r = json.loads(response._container[0].decode())
-        self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'avilio.perez',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0000000108',
-                'email': 'test@test.test'})
+        self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")        
+        self.assertEqual(aux.user.email, "test@test.test")
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
-        side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_instructor_staff(self, get, post, mock_created_user):
+    def test_staff_post_instructor_staff(self, get, post):
         """
             Test staff view post when user have permission
         """
@@ -1324,13 +1175,11 @@ class TestStaffView(ModuleStoreTestCase):
         response = self.instructor_staff_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEqual(response.status_code, 404)
+        self.assertTrue(not EdxLoginUser.objects.filter(run="0000000108").exists())
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
-        side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_instructor(self, get, post, mock_created_user):
+    def test_staff_post_instructor(self, get, post):
         """
             Test staff view post when user is instructor
         """
@@ -1384,16 +1233,7 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(aux.run, "0000000108")
         self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
-        self.assertEqual(
-            mock_created_user.call_args_list[0][0][0],
-            {
-                'username': 'avilio.perez',
-                'apellidoMaterno': 'TESTLASTNAME',
-                'nombres': 'TEST NAME',
-                'apellidoPaterno': 'TESTLASTNAME',
-                'nombreCompleto': 'TEST NAME TESTLASTNAME TESTLASTNAME',
-                'rut': '0000000108',
-                'email': 'test@test.test'})
+        self.assertEqual(aux.user.email, "test@test.test")
         r = json.loads(response._container[0].decode())
         self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
 
@@ -1501,12 +1341,9 @@ class TestStaffView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEqual(response.status_code, 404)
 
-    @patch(
-        "uchileedxlogin.views.EdxLoginStaff.create_user_by_data",
-        side_effect=create_user2)
     @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_enroll_student(self, get, post, mock_created_user):
+    def test_staff_post_enroll_student(self, get, post):
         """
             Test staff view post enroll when user is student 
         """

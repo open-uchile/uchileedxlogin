@@ -151,14 +151,13 @@ class Content(object):
         """
         Create the user by the Django model
         """
-        from student.forms import AccountCreationForm
+        from openedx.core.djangoapps.user_authn.views.registration_form import AccountCreationForm
         from student.helpers import do_create_account
 
         # Check and remove email if its already registered
 
         if user_data['email'] == 'null':
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
-
         form = AccountCreationForm(
             data={
                 "username": self.generate_username(user_data),
@@ -195,7 +194,7 @@ class Content(object):
         aux_last_name = ((user_data['apellidoPaterno'] or '') +
                          " " + (user_data['apellidoMaterno'] or '')).strip()
         aux_last_name = aux_last_name.split(" ")
-        aux_first_name = user_data['nombres'].split(" ")
+        aux_first_name = user_data['nombres'].replace("."," ").split(" ")
 
         first_name = [
             unidecode.unidecode(x).replace(
