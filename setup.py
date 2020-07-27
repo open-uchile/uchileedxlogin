@@ -16,5 +16,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     entry_points={
-        "lms.djangoapp": ["uchileedxlogin = uchileedxlogin.apps:UchileEdxloginConfig"]},
+        "lms.djangoapp": ["uchileedxlogin = uchileedxlogin.apps:UchileEdxloginConfig"],
+        "cms.djangoapp": ["uchileedxlogin = uchileedxlogin.apps:UchileEdxloginConfig"]
+    },
 )
