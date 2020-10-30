@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.views.generic.base import View
 from django.http import HttpResponse
 from .models import EdxLoginUser, EdxLoginUserCourseRegistration
+from .email_tasks import enroll_email
 from urllib.parse import urlencode
 from itertools import cycle
 from opaque_keys.edx.keys import CourseKey
@@ -29,9 +30,10 @@ import logging
 import sys
 import unicodecsv as csv
 import re
-
+from django.contrib.auth.base_user import BaseUserManager
 logger = logging.getLogger(__name__)
 regex = r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$'
+regex_names = r'^[A-Za-z\s\-\.]+$'
 
 
 def require_post_action():
@@ -143,6 +145,7 @@ class Content(object):
                 user = self.create_user_by_data(user_data)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
+                    have_sso=True,
                     run=user_data['rut']
                 )
             return edxlogin_user
@@ -155,14 +158,14 @@ class Content(object):
         from student.helpers import do_create_account
 
         # Check and remove email if its already registered
-
+        user_pass = "invalid" if 'pass' not in user_data else user_data['pass']  # Temporary password
         if user_data['email'] == 'null':
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
         form = AccountCreationForm(
             data={
                 "username": self.generate_username(user_data),
                 "email": user_data['email'],
-                "password": "invalid",  # Temporary password
+                "password": user_pass,
                 "name": user_data['nombreCompleto'],
             },
             tos_required=False,
@@ -175,9 +178,10 @@ class Content(object):
         from student.models import create_comments_service_user
         create_comments_service_user(user)
 
-        # Invalidate the user password, as it will be never be used
-        user.set_unusable_password()
-        user.save()
+        if 'pass' not in user_data:
+            # Invalidate the user password, as it will be never be used
+            user.set_unusable_password()
+            user.save()
 
         return user
 
@@ -191,10 +195,17 @@ class Content(object):
         4. return first_name[0] + "_" first_name[1..N][0..N] + "_" + last_name[1..N][0..N]
         5. return first_name[0] + "_" + last_name[0] + N
         """
-        aux_last_name = ((user_data['apellidoPaterno'] or '') +
-                         " " + (user_data['apellidoMaterno'] or '')).strip()
-        aux_last_name = aux_last_name.split(" ")
-        aux_first_name = user_data['nombres'].replace("."," ").split(" ")
+        if 'apellidoPaterno' not in user_data or 'apellidoMaterno' not in user_data or 'nombres' not in user_data:
+            aux_username = user_data['nombreCompleto'].replace("."," ")
+            aux_username = aux_username.replace("-"," ").split(" ")
+            i = int(len(aux_username)/2)
+            aux_first_name = aux_username[0:i]
+            aux_last_name = aux_username[i:]
+        else:
+            aux_last_name = ((user_data['apellidoPaterno'] or '') +
+                            " " + (user_data['apellidoMaterno'] or '')).strip()
+            aux_last_name = aux_last_name.split(" ")
+            aux_first_name = user_data['nombres'].replace("."," ").split(" ")
 
         first_name = [
             unidecode.unidecode(x).replace(
@@ -415,6 +426,35 @@ class ContentStaff(object):
                     access = True
         return access
 
+    def get_username(self, run):
+        """
+        Get username
+        """
+
+        parameters = {
+            'rutUsuario': run
+        }
+        result = requests.post(
+            settings.EDXLOGIN_USERNAME,
+            data=json.dumps(parameters),
+            headers={
+                'content-type': 'application/json'})
+        if result.status_code != 200:
+            logger.error(
+                "{} {}".format(
+                    result.request,
+                    result.request.headers))
+            raise Exception("Wrong run {} {}".format(result.status_code, run))
+
+        data = json.loads(result.text)
+        username = ""
+        if "cuentascorp" in data and len(data["cuentascorp"]) > 0:
+            email = data["cuentascorp"]
+            for name in email:
+                if name["tipoCuenta"] == "CUENTA PASAPORTE":
+                    username = name["cuentaCorp"] or ""
+                    break
+        return username
 
 class EdxLoginLoginRedirect(View):
     def get(self, request):
@@ -519,6 +559,9 @@ class EdxLoginCallback(View, Content):
         user_data = self.get_user_data(username)
         user_data['username'] = username
         edxlogin_user = self.get_or_create_user(user_data)
+        if not edxlogin_user.have_sso:
+            edxlogin_user.have_sso = True
+            edxlogin_user.save()
         self.enroll_pending_courses(edxlogin_user)
         if request.user.is_anonymous or request.user.id != edxlogin_user.user.id:
             logout(request)
@@ -553,12 +596,15 @@ class EdxLoginStaff(View, Content, ContentStaff):
         Enroll/force enroll/unenroll user
     """
     def get(self, request):
-        course_id = request.GET.get("course", "")
-        if self.validate_user(request, course_id):
-            context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
-            return render(request, 'edxlogin/staff.html', context)
+        if not request.user.is_anonymous:
+            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
+                context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
+                return render(request, 'edxlogin/staff.html', context)
+            else:
+                logger.error("User dont have permission or is not staff, user: {}".format(request.user))
         else:
-            raise Http404()
+            logger.error("User is Anonymous")
+        raise Http404()
 
     @require_post_action()
     def post(self, request):
@@ -747,36 +793,6 @@ class EdxLoginStaff(View, Content, ContentStaff):
         except Exception:
             return None
 
-    def get_username(self, run):
-        """
-        Get username
-        """
-
-        parameters = {
-            'rutUsuario': run
-        }
-        result = requests.post(
-            settings.EDXLOGIN_USERNAME,
-            data=json.dumps(parameters),
-            headers={
-                'content-type': 'application/json'})
-        if result.status_code != 200:
-            logger.error(
-                "{} {}".format(
-                    result.request,
-                    result.request.headers))
-            raise Exception("Wrong run {} {}".format(result.status_code, run))
-
-        data = json.loads(result.text)
-        username = ""
-        if "cuentascorp" in data and len(data["cuentascorp"]) > 0:
-            email = data["cuentascorp"]
-            for name in email:
-                if name["tipoCuenta"] == "CUENTA PASAPORTE":
-                    username = name["cuentaCorp"] or ""
-                    break
-        return username
-
 
 class EdxLoginExport(View):
     """
@@ -807,3 +823,287 @@ class EdxLoginExport(View):
         writer.writerows(data)
 
         return response
+
+class EdxLoginExternal(View, Content, ContentStaff):
+    """
+        Enroll external user
+    """
+    def get(self, request):
+        if not request.user.is_anonymous:
+            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
+                context = {'datos': '', 'auto_enroll': True, 'modo': 'honor', 'send_email': False}
+                return render(request, 'edxlogin/external.html', context)
+            else:
+                logger.error("User dont have permission or is not staff, user: {}".format(request.user))
+        else:
+            logger.error("User is Anonymous")
+        raise Http404()
+
+    def post(self, request):
+        course_id = request.POST.get("course", "")
+        if self.validate_user(request, course_id):
+            lista_data = request.POST.get("datos", "").split('\n')
+            # limpieza de los datos ingresados
+            lista_data = [run.strip() for run in lista_data]
+            lista_data = [run for run in lista_data if run]
+            lista_data = [d.split(",") for d in lista_data]
+            # verifica si el checkbox de auto enroll fue seleccionado
+            enroll = False
+            if request.POST.getlist("enroll"):
+                enroll = True
+            # verifica si el checkbox de send_email fue seleccionado
+            send_email = False
+            if request.POST.getlist("send_email"):
+                send_email = True
+            context = {
+                'datos': request.POST.get('datos'),
+                'curso': course_id,
+                'auto_enroll': enroll,
+                'send_email': send_email,
+                'modo': request.POST.get("modes", None)}
+            # validacion de datos
+            context = self.validate_data_external(request, lista_data, context)
+            # retorna si hubo al menos un error
+            if len(context) > 5:
+                return render(request, 'edxlogin/external.html', context)
+
+            lista_saved = self.enroll_create_user(
+                request, lista_data, enroll)
+            redirect_url = request.build_absolute_uri('/courses/{}/course'.format(course_id))
+            login_url = request.build_absolute_uri('/login')
+            email_saved = []
+            for email in lista_saved:
+                if send_email:
+                    enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'])
+                aux = email
+                aux.pop('password', None)
+                email_saved.append(aux)
+                
+            context = {
+                'datos': '',
+                'auto_enroll': True,
+                'send_email': False,
+                'modo': 'honor',
+                'action_send': send_email
+            }
+            if len(email_saved) > 0:
+                context['lista_saved'] = email_saved
+            return render(request, 'edxlogin/external.html', context)
+
+        else:
+            logger.error("User is Anonymous or dont have next permission: uchile_instructor_staff, instructor, course_staff, staff.")
+            raise Http404()
+
+    def validate_data_external(self, request, lista_data, context):
+        """
+            Validate Data
+        """
+        wrong_data = []
+        # si no se ingreso datos
+        if not lista_data:
+            logger.error("Empty Data, user: {}".format(request.user.id))
+            context['no_data'] = ''
+        if len(lista_data) > 50:
+            logger.error("data limit is 50, length data: {} user: {}".format(len(lista_data),request.user.id))
+            context['limit_data'] = ''
+        else:
+            for data in lista_data:
+                data = [d.strip() for d in data]
+                if len(data) == 1 or len(data)>3:
+                    data.append("")
+                    data.append("")
+                    wrong_data.append(data)
+                    logger.error("Wrong Data, only one or four++ parameters, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                else:
+                    if len(data) == 2:
+                        data.append("")
+                    if data[0] != "" and data[1] != "":
+                        aux_name = data[0].lower()
+                        aux_name = aux_name.replace("."," ")
+                        aux_name = aux_name.replace("-"," ")
+                        if len(aux_name.split(" ")) == 1:
+                            logger.error("Wrong Name, not lastname, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                            wrong_data.append(data)
+                        elif not re.match(regex_names, unidecode.unidecode(aux_name)):
+                            logger.error("Wrong Name, not allowed specials characters or numbers, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                            wrong_data.append(data)
+                        elif not re.match(regex, data[1].lower()):
+                            logger.error("Wrong Email {}, user: {}, wrong_data: {}".format(data[1].lower(), request.user.id, wrong_data))
+                            wrong_data.append(data)
+                        elif data[2] != "" and not self.validarRutAllType(request, data[2]):
+                            logger.error("Wrong Rut {}, user: {}, wrong_data: {}".format(data[2], request.user.id, wrong_data))
+                            wrong_data.append(data)
+                    else:
+                        wrong_data.append(data)
+        if len(wrong_data) > 0:
+            logger.error("Wrong Data, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+            context['wrong_data'] = wrong_data
+        # valida curso
+        if request.POST.get("course", "") == "":
+            logger.error("Empty course, user: {}".format(request.user.id))
+            context['curso2'] = ''
+        # valida si existe el curso
+        elif not self.validate_course(request.POST.get("course", "")):
+            logger.error("Couse dont exists, user: {}, course_id: {}".format(request.user.id, request.POST.get("course", "")))
+            context['error_curso'] = ''
+
+        # si el modo es incorrecto
+        if not request.POST.get(
+                "modes", None) in [
+                x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
+            context['error_mode'] = ''
+            logger.error("Wrong Mode, user: {}, mode: {}".format(request.user.id, request.POST.get("modes", "")))
+        return context
+    
+    def validarRutAllType(self, request, run):
+        """
+            Validate all Rut types
+        """
+        try:
+            if run[0] == 'P':
+                if 5 > len(run[1:]) or len(run[1:]) > 20:
+                    logger.error("Rut Passport wrong, user: {}, rut".format(request.user.id, run))
+                    return False
+            elif run[0:2] == 'CG':
+                if len(run) != 10:
+                    logger.error("Rut CG wrong, user: {}, rut".format(request.user.id, run))
+                    return False
+            else:
+                if not self.validarRut(run):
+                    logger.error("Rut wrong, user: {}, rut".format(request.user.id, run))
+                    return False
+
+        except Exception:
+            logger.error("Rut wrong, user: {}, rut".format(request.user.id, run))
+            return False
+
+        return True
+
+    def enroll_create_user(self, request, lista_data, enroll):
+        """
+            Create and enroll the user with/without UChile account
+            if email or rut exists not saved them
+        """
+        lista_saved = []
+        # guarda el form
+        with transaction.atomic():
+            for dato in lista_data:
+                dato = [d.strip() for d in dato]
+                if len(dato) == 3:
+                    dato[2] = dato[2].upper()
+                    dato[2] = dato[2].replace("-", "")
+                    dato[2] = dato[2].replace(".", "")
+                    dato[2] = dato[2].strip()
+                if len(dato) == 2:
+                    dato.append("")
+                while len(dato[2]) > 0 and len(dato[2]) < 10 and 'P' != dato[2][0] and 'CG' != dato[2][0:2]:
+                    dato[2] = "0" + dato[2]
+                aux_email = dato[1]
+                aux_pass = BaseUserManager().make_random_password(12)
+                aux_user = False
+                if User.objects.filter(email=dato[1]).exists():
+                    dato[1] = 'null'
+                if dato[2] != "":
+                    aux_rut = ''
+                    if EdxLoginUser.objects.filter(run=dato[2]).exists():
+                        aux_rut = dato[2]
+                        edxlogin_user = EdxLoginUser.objects.get(run=dato[2])
+                        if not edxlogin_user.have_sso:
+                            aux_user = True
+                    else:
+                        edxlogin_user = self.create_user_with_run(dato, aux_pass)
+                    self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                    lista_saved.append({
+                        'email_o': aux_email,
+                        'email_d': edxlogin_user.user.email,
+                        'nombreCompleto': edxlogin_user.user.profile.name.strip(),
+                        'rut': dato[2],
+                        'rut_aux': aux_rut,
+                        'password': aux_pass,
+                        'sso': edxlogin_user.have_sso,
+                        'exists': aux_user
+                    })
+                else:
+                    if dato[1] != 'null':
+                        user_data = {
+                            'email':dato[1],
+                            'nombreCompleto':dato[0],
+                            'pass': aux_pass
+                        }
+                        user = self.create_user_by_data(user_data)
+                    else:
+                        aux_user = True
+                        user = User.objects.get(email=aux_email)
+                    
+                    self.enroll_course_user(user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                    lista_saved.append({
+                        'email_o': aux_email,
+                        'email_d': user.email,
+                        'nombreCompleto': user.profile.name.strip(),
+                        'rut': '',
+                        'rut_aux': '',
+                        'password': aux_pass,
+                        'sso': False,
+                        'exists': aux_user
+                    })
+        return lista_saved
+
+    def create_user_with_run(self, dato, aux_pass):
+        """
+            Get user data and create the user
+        """
+
+        try:
+            username = self.get_username(dato[2])
+            user_data = self.get_user_data(username)
+            user_data['username'] = username
+            user_data['pass'] = aux_pass
+            edxlogin_user = self.create_user_external(user_data, dato)
+            return edxlogin_user
+        except Exception:
+            with transaction.atomic():
+                #if dato[1](email) is 'null' user is created with invalid email
+                user_data = {
+                    'email': dato[1],
+                    'nombreCompleto':dato[0],
+                    'pass': aux_pass
+                }
+                user = self.create_user_by_data(user_data)
+                edxlogin_user = EdxLoginUser.objects.create(
+                    user=user,
+                    have_sso=False,
+                    run=dato[2]
+                )
+            return edxlogin_user
+
+    def create_user_external(self, user_data, dato):
+        """
+            Create the user given the user data.
+            If the email exists, get new email address.
+        """
+        with transaction.atomic():
+            user_data['email'] = dato[1] if dato[1] != 'null' else self.get_user_email(user_data['rut'])
+            user = self.create_user_by_data(user_data)
+            edxlogin_user = EdxLoginUser.objects.create(
+                user=user,
+                have_sso=True,
+                run=user_data['rut']
+            )
+        return edxlogin_user
+    
+    def enroll_course_user(self, user, course, enroll, mode):
+        """
+            Enroll the user in the course.
+        """
+        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+
+        if enroll:
+            CourseEnrollment.enroll(
+                user,
+                CourseKey.from_string(course),
+                mode=mode)
+        else:
+            CourseEnrollmentAllowed.objects.create(
+                course_id=CourseKey.from_string(course),
+                email=user.email,
+                user=user)
