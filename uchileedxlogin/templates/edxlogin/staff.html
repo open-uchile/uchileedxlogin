@@ -103,7 +103,7 @@
                 <p id="curso2" style="color:firebrick; margin-bottom: 15px;">Falta agregar curso.</p>
             % endif
             % if context.get('error_curso', UNDEFINED) is not UNDEFINED:
-                <p style="color:firebrick; margin-bottom: 15px;">Curso no existe.</p>
+                <p id="error_curso" style="color:firebrick; margin-bottom: 15px;">Curso no existe.</p>
             % endif
             % if context.get('error_mode', UNDEFINED) is not UNDEFINED:
                 <p style="color:firebrick; margin-bottom: 15px;">El modo esta incorrecto.</p>

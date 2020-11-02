@@ -3,10 +3,10 @@ import setuptools
 setuptools.setup(
     name="uchileedxlogin",
     version="0.0.1",
-    author="Felipe Espinoza",
-    author_email="felipe.espinoza.r@uchile.cl",
-    description="Authentication backend for Chile uchileedxlogin",
-    long_description="Authentication backend for Chile uchileedxlogin",
+    author="Luis Santana",
+    author_email="luis.santana@uchile.cl",
+    description="Authentication backend for EOL from UChile api and Enroll/Unenroll/Export users",
+    long_description="Authentication backend for EOL from UChile api and Enroll/Unenroll/Export users",
     url="https://eol.uchile.cl",
     packages=setuptools.find_packages(),
     install_requires=["unidecode>=1.1.1"],
@@ -16,5 +16,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     entry_points={
-        "lms.djangoapp": ["uchileedxlogin = uchileedxlogin.apps:UchileEdxloginConfig"]},
+        "lms.djangoapp": ["uchileedxlogin = uchileedxlogin.apps:UchileEdxloginConfig"],
+        "cms.djangoapp": ["uchileedxlogin = uchileedxlogin.apps:UchileEdxloginConfig"]
+    },
 )

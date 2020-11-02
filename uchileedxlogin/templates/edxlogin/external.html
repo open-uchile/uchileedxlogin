@@ -1,0 +1,158 @@
+## mako
+
+<%page expression_filter="h"/>
+<%! from django.utils.translation import ugettext as _ %>
+<%inherit file="../main.html" />
+<%block name="pagetitle">${_("Inscripcion")}</%block>
+<main id="main" aria-label="Content" tabindex="-1" class="static_pages">
+<style>
+    
+@media (min-width: 10px){
+    .inputwidth1{
+		margin-right: 0px;
+    }
+    .inputwidth2{
+		margin-right: 0px;
+    }
+    .inputwidth3{
+		margin-right: 0px;
+	}
+}
+@media (min-width: 750px){
+    .inputwidth1{
+		margin-right: 249px;
+    }
+    .inputwidth2{
+		margin-right: 413px;
+    }
+}
+@media (min-width: 870px){   
+    .inputwidth3{
+		margin-right: 533px;
+	}
+}
+textarea {
+    resize: both;
+    overflow: auto;
+    min-width: 500px;
+    font-style: normal; 
+    font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    width: 600px;
+}
+p {
+    font-style: normal; 
+    font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+}
+</style>
+<script type="text/javascript"> 
+    function limitTextarea(textarea, maxLines) {      
+        var lines = textarea.value.replace(/\r/g, '').trim();
+        lines = lines.split('\n');
+        lines = lines.filter(function(el) { return el; });              
+        if (maxLines && lines.length > maxLines) {
+            lines = lines.slice(0, maxLines);
+            textarea.value = lines.join('\n')
+        }
+    }
+</script>
+<h1>Inscripción Externa</h1>
+    <div style="text-align: center">
+        <form method="POST">
+           <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_token}"/>
+           <% diff_email = False %>
+            % if context.get('action_send', False) is True and context.get('lista_saved', UNDEFINED) is not UNDEFINED:
+                <p id="action_send" style="color:rgb(56, 181, 197); margin-bottom: 15px;">
+                    <b>Correos Enviados Correctamente.</b>
+                </p>
+            % endif
+            % if context.get('lista_saved', UNDEFINED) is not UNDEFINED:
+                <p id="lista_saved" style="color:rgb(56, 181, 197); margin-bottom: 15px;">
+                    <b>Usuarios Creados y/o Inscritos:</b></br>
+                    %for run in lista_saved:
+                        % if run['rut'] == run['rut_aux'] and run['rut'] != "":
+                            El rut '${run['rut']}' ya existe, correo asociado/inscrito '${run['email_d']}', ${run['rut']}
+                        % else:
+                            % if run['email_o'] == run['email_d']:
+                                ${run['email_o']}, ${run['rut']}
+                            % else:
+                                <% diff_email = True %>
+                                El correo '${run['email_o']}' ya existe, correo inscrito '${run['email_d']}', ${run['rut']}*
+                            % endif
+                        % endif
+                        </br>
+                    %endfor
+                </p>
+            % endif
+            % if context.get('wrong_data', UNDEFINED) is not UNDEFINED:
+                <p id="wrong_data" style="color:firebrick; margin-bottom: 15px;">
+                    <b>Estos Datos están incorrectos: </b></br>
+                    %for data in wrong_data:
+                        ${data[0]}, ${data[1]}, ${data[2]}</br>
+                    %endfor
+                </p>
+            % endif
+            % if context.get('no_data', UNDEFINED) is not UNDEFINED:
+                <p id="no_data" style="color:firebrick; margin-bottom: 15px;">Falta agregar datos.</p>
+            % endif
+            % if context.get('limit_data', UNDEFINED) is not UNDEFINED:
+                <p id="limit_data" style="color:firebrick; margin-bottom: 15px;">El limite de inscripciones a la vez es 50.</p>
+            % endif
+            % if context.get('curso2', UNDEFINED) is not UNDEFINED:
+                <p id="curso2" style="color:firebrick; margin-bottom: 15px;">Falta agregar curso.</p>
+            % endif
+            % if context.get('error_curso', UNDEFINED) is not UNDEFINED:
+                <p id="error_curso" style="color:firebrick; margin-bottom: 15px;">Curso no existe.</p>
+            % endif
+            % if context.get('error_mode', UNDEFINED) is not UNDEFINED:
+                <p id="error_mode" style="color:firebrick; margin-bottom: 15px;">El modo esta incorrecto.</p>
+            % endif
+            <p style="color:black; margin-bottom: 15px;">Limite de Inscripciones a la vez: 50.</p>
+            <div class="form-group" style="margin: 15px 15px;">
+                <label for="datos" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">Datos:</label>
+                <textarea type="text" spellcheck="false" onkeyup="limitTextarea(this,50)" name='datos' id="datos" placeholder="juanito perez, a@b.c, 12345678-k&#10;juanito perez, a@b.c, 12345678-k">${datos}</textarea>
+            </div>
+            <div class="form-group" style="margin: 15px 15px;">
+                <label for="course" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">ID Curso:</label>
+                % if context.get('curso', UNDEFINED) is not UNDEFINED:
+                    <input style="min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;margin-right: 13px;" type="text" name='course' id="course"  placeholder="course-v1:mss+MSS001+2019_2" value="${curso}"></input>                    
+                % else:
+                    <input style="min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;margin-right: 13px;" type="text" name='course' id='course' placeholder="course-v1:mss+MSS001+2019_2"></input>
+                % endif
+            </div>
+            <div class="form-group" style="margin: 15px 15px;">
+                <label for="modes" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">Modo:</label>
+                <select class="inputwidth1" style="font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;" name='modes'>
+                    % if context.get('modo', "") == 'honor':
+                        <option value="audit">Equipo Docente</option>
+                        <option value="honor" selected>Estudiante</option>
+                    % else:
+                        <option value="audit" selected>Equipo Docente</option>
+                        <option value="honor">Estudiante</option>
+                    % endif
+                </select>
+            </div>
+            <div class="form-group" style="margin: 15px 15px;">
+                <label for="enroll" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">Auto Enroll:</label>
+                % if context.get('auto_enroll', "") is False:
+                    <input class="inputwidth2" type="checkbox"  name='enroll' id='enroll' value="1"></input>
+                % else:
+                    <input class="inputwidth2" type="checkbox"  name='enroll' id='enroll' value="1" checked></input>
+                % endif
+            </div>
+            <div class="form-group" style="margin: 15px 15px;">
+                <label for="send_email" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">Enviar Invitación por Correo:</label>
+                % if context.get('send_email', "") is False:
+                <input type="checkbox" class="inputwidth3" name='send_email' id='send_email' value="1"></input>
+                % else:
+                <input type="checkbox" class="inputwidth3" name='send_email' id='send_email' value="1" checked></input>
+                % endif
+            </div>
+            <input type="submit" style="text-shadow: none; border-color:white; background-color: #0075b4; background-image: none; display:block; margin: auto" value="Enviar">
+        </form>
+        % if diff_email:
+            <small id="diff_email" class="text-muted" style="line-height: 54px;">
+                * Estos correos son obtenidos a traves del rut asociado a la cuenta UChile
+            </small>
+        % endif
+    </div>
+</main>
