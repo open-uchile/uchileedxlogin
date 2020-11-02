@@ -6,6 +6,8 @@ Para ingresar, debe dirigirse a <a href="${login_url}">${login_url}</a> y presio
 
 Si tiene problemas con su contraseña, debe dirigirse a <a href="https://cuenta.uchile.cl/solicitar-recuperar-cuenta">https://cuenta.uchile.cl/solicitar-recuperar-cuenta</a>, ingresar su RUT o número pasaporte extranjero, presionar 'No soy un Robot' y luego 'Recuperar mi contraseña' y se te enviará un correo con la información para recuperar tu contraseña.<br><br>
 
+Si necesita ayuda o realizar una consulta, puede contactarse con nosotros a través de la <a href="${helpdesk_url}">Mesa de Ayuda</a><br><br>
+
 Gracias,<br>
 Equipo ${platform_name}.<br><br>
 

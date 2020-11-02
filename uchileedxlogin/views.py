@@ -871,10 +871,11 @@ class EdxLoginExternal(View, Content, ContentStaff):
                 request, lista_data, enroll)
             redirect_url = request.build_absolute_uri('/courses/{}/course'.format(course_id))
             login_url = request.build_absolute_uri('/login')
+            helpdesk_url = request.build_absolute_uri('/contact_form')
             email_saved = []
             for email in lista_saved:
                 if send_email:
-                    enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'])
+                    enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url)
                 aux = email
                 aux.pop('password', None)
                 email_saved.append(aux)
