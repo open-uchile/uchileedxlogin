@@ -834,9 +834,9 @@ class EdxLoginExternal(View, Content, ContentStaff):
                 context = {'datos': '', 'auto_enroll': True, 'modo': 'honor', 'send_email': True}
                 return render(request, 'edxlogin/external.html', context)
             else:
-                logger.error("User dont have permission or is not staff, user: {}".format(request.user))
+                logger.error("EdxLoginExternal - User dont have permission or is not staff, user: {}".format(request.user))
         else:
-            logger.error("User is Anonymous")
+            logger.error("EdxLoginExternal - User is Anonymous")
         raise Http404()
 
     def post(self, request):
@@ -897,7 +897,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
             return render(request, 'edxlogin/external.html', context)
 
         else:
-            logger.error("User is Anonymous or dont have next permission: uchile_instructor_staff, instructor, course_staff, staff.")
+            logger.error("EdxLoginExternal - User is Anonymous or dont have next permission: uchile_instructor_staff, instructor, course_staff, staff.")
             raise Http404()
 
     def validate_data_external(self, request, lista_data, context):
@@ -907,10 +907,10 @@ class EdxLoginExternal(View, Content, ContentStaff):
         wrong_data = []
         # si no se ingreso datos
         if not lista_data:
-            logger.error("Empty Data, user: {}".format(request.user.id))
+            logger.error("EdxLoginExternal - Empty Data, user: {}".format(request.user.id))
             context['no_data'] = ''
         if len(lista_data) > 50:
-            logger.error("data limit is 50, length data: {} user: {}".format(len(lista_data),request.user.id))
+            logger.error("EdxLoginExternal - data limit is 50, length data: {} user: {}".format(len(lista_data),request.user.id))
             context['limit_data'] = ''
         else:
             for data in lista_data:
@@ -919,7 +919,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     data.append("")
                     data.append("")
                     wrong_data.append(data)
-                    logger.error("Wrong Data, only one or four++ parameters, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                    logger.error("EdxLoginExternal - Wrong Data, only one or four++ parameters, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
                 else:
                     if len(data) == 2:
                         data.append("")
@@ -928,29 +928,29 @@ class EdxLoginExternal(View, Content, ContentStaff):
                         aux_name = aux_name.replace("."," ")
                         aux_name = aux_name.replace("-"," ")
                         if len(aux_name.split(" ")) == 1:
-                            logger.error("Wrong Name, not lastname, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                            logger.error("EdxLoginExternal - Wrong Name, not lastname, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
                             wrong_data.append(data)
                         elif not re.match(regex_names, unidecode.unidecode(aux_name)):
-                            logger.error("Wrong Name, not allowed specials characters or numbers, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                            logger.error("EdxLoginExternal - Wrong Name, not allowed specials characters or numbers, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
                             wrong_data.append(data)
                         elif not re.match(regex, data[1].lower()):
-                            logger.error("Wrong Email {}, user: {}, wrong_data: {}".format(data[1].lower(), request.user.id, wrong_data))
+                            logger.error("EdxLoginExternal - Wrong Email {}, user: {}, wrong_data: {}".format(data[1].lower(), request.user.id, wrong_data))
                             wrong_data.append(data)
                         elif data[2] != "" and not self.validarRutAllType(request, data[2]):
-                            logger.error("Wrong Rut {}, user: {}, wrong_data: {}".format(data[2], request.user.id, wrong_data))
+                            logger.error("EdxLoginExternal - Wrong Rut {}, user: {}, wrong_data: {}".format(data[2], request.user.id, wrong_data))
                             wrong_data.append(data)
                     else:
                         wrong_data.append(data)
         if len(wrong_data) > 0:
-            logger.error("Wrong Data, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+            logger.error("EdxLoginExternal - Wrong Data, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
             context['wrong_data'] = wrong_data
         # valida curso
         if request.POST.get("course", "") == "":
-            logger.error("Empty course, user: {}".format(request.user.id))
+            logger.error("EdxLoginExternal - Empty course, user: {}".format(request.user.id))
             context['curso2'] = ''
         # valida si existe el curso
         elif not self.validate_course(request.POST.get("course", "")):
-            logger.error("Couse dont exists, user: {}, course_id: {}".format(request.user.id, request.POST.get("course", "")))
+            logger.error("EdxLoginExternal - Couse dont exists, user: {}, course_id: {}".format(request.user.id, request.POST.get("course", "")))
             context['error_curso'] = ''
 
         # si el modo es incorrecto
@@ -958,7 +958,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
                 "modes", None) in [
                 x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
             context['error_mode'] = ''
-            logger.error("Wrong Mode, user: {}, mode: {}".format(request.user.id, request.POST.get("modes", "")))
+            logger.error("EdxLoginExternal - Wrong Mode, user: {}, mode: {}".format(request.user.id, request.POST.get("modes", "")))
         return context
     
     def validarRutAllType(self, request, run):
@@ -968,19 +968,19 @@ class EdxLoginExternal(View, Content, ContentStaff):
         try:
             if run[0] == 'P':
                 if 5 > len(run[1:]) or len(run[1:]) > 20:
-                    logger.error("Rut Passport wrong, user: {}, rut".format(request.user.id, run))
+                    logger.error("EdxLoginExternal - Rut Passport wrong, user: {}, rut".format(request.user.id, run))
                     return False
             elif run[0:2] == 'CG':
                 if len(run) != 10:
-                    logger.error("Rut CG wrong, user: {}, rut".format(request.user.id, run))
+                    logger.error("EdxLoginExternal - Rut CG wrong, user: {}, rut".format(request.user.id, run))
                     return False
             else:
                 if not self.validarRut(run):
-                    logger.error("Rut wrong, user: {}, rut".format(request.user.id, run))
+                    logger.error("EdxLoginExternal - Rut wrong, user: {}, rut".format(request.user.id, run))
                     return False
 
         except Exception:
-            logger.error("Rut wrong, user: {}, rut".format(request.user.id, run))
+            logger.error("EdxLoginExternal - Rut wrong, user: {}, rut".format(request.user.id, run))
             return False
 
         return True
