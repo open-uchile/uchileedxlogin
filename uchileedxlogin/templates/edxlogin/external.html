@@ -3,7 +3,7 @@
 <%page expression_filter="h"/>
 <%! from django.utils.translation import ugettext as _ %>
 <%inherit file="../main.html" />
-<%block name="pagetitle">${_("Inscripcion")}</%block>
+<%block name="pagetitle">${_("Inscripcion Externa")}</%block>
 <main id="main" aria-label="Content" tabindex="-1" class="static_pages">
 <style>
     
@@ -83,6 +83,15 @@ p {
                     %endfor
                 </p>
             % endif
+            % if context.get('lista_not_saved', UNDEFINED) is not UNDEFINED:
+                <p id="lista_not_saved" style="color:firebrick; margin-bottom: 15px;">
+                    <b>Estos datos no se pudieron guardar, porque el correo ingresado y los correos asociados al rut ya existen:</b></br>
+                    %for data in lista_not_saved:
+                        Correo ingresado: ${data[0]}, rut: ${data[1]}.
+                        </br>
+                    %endfor
+                </p>
+            % endif
             % if context.get('wrong_data', UNDEFINED) is not UNDEFINED:
                 <p id="wrong_data" style="color:firebrick; margin-bottom: 15px;">
                     <b>Estos Datos están incorrectos: </b></br>
@@ -147,7 +156,7 @@ p {
                 <input type="checkbox" class="inputwidth3" name='send_email' id='send_email' value="1" checked></input>
                 % endif
             </div>
-            <input type="submit" style="text-shadow: none; border-color:white; background-color: #0075b4; background-image: none; display:block; margin: auto" value="Enviar">
+            <input type="submit" onClick="this.form.submit(); this.disabled=true; this.value='Enviando…'; " style="text-shadow: none; border-color:white; background-color: #0075b4; background-image: none; display:block; margin: auto" value="Enviar">
         </form>
         % if diff_email:
             <small id="diff_email" class="text-muted" style="line-height: 54px;">

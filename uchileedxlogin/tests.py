@@ -2007,3 +2007,78 @@ class TestExternalView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:external'), post_data)
         self.assertEqual(response.status_code, 200)
         self.assertTrue('id="action_send"' in response._container[0].decode())
+
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_external_post_with_run_exists_sso_email(self, get, post):
+        """
+            Test external view post with run, sso email exists, run no exists in db platform
+        """
+        data = {"cuentascorp": [{"cuentaCorp": "test.test",
+                                 "tipoCuenta": "CUENTA PASAPORTE",
+                                 "organismoDominio": "Universidad de Chile"}]}
+
+        get.side_effect = [namedtuple("Request",
+                                      ["status_code",
+                                       "text"])(200,
+                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
+                                                            "apellidoMaterno": "TESTLASTNAME",
+                                                            "nombres": "TEST NAME",
+                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
+                                                            "rut": "0000000108"}))]
+        post.side_effect = [namedtuple("Request",
+                                       ["status_code",
+                                        "text"])(200,
+                                                 json.dumps(data)),
+                            namedtuple("Request",
+                                       ["status_code",
+                                        "text"])(200,
+                                                 json.dumps({"emails": [{"rut": "0000000108",
+                                                                         "email": "instructor_staff@edx.org",
+                                                                         "codigoTipoEmail": "1",
+                                                                         "nombreTipoEmail": "PRINCIPAL"},
+                                                                        {"rut": "0112223334",
+                                                                         "email": "student2@edx.org",
+                                                                         "codigoTipoEmail": "1",
+                                                                         "nombreTipoEmail": "ALTERNATIVO"}]}))]
+        post_data = {
+            'datos': 'aa bb cc dd, student2@edx.org, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertTrue(User.objects.filter(email="student2@edx.org").exists())
+        self.assertTrue(User.objects.filter(email="instructor_staff@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_not_saved"' in response._container[0].decode())
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+
+    @patch('requests.post')
+    @patch('requests.get')
+    def test_external_post_with_run_exists_fail_get_data_email_exists(self, get, post):
+        """
+            Test external view post with run,email exists, fail to get sso data, run no exists in db platform
+        """
+        data = {"cuentascorp": [{"cuentaCorp": "test.test",
+                                 "tipoCuenta": "CUENTA PASAPORTE",
+                                 "organismoDominio": "Universidad de Chile"}]}
+
+        post.side_effect = [namedtuple("Request",
+                                       ["status_code",
+                                        "text"])(404,
+                                                 json.dumps(data)),]
+        post_data = {
+            'datos': 'aa bb cc dd, student2@edx.org, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertTrue(User.objects.filter(email="student2@edx.org").exists())
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_not_saved"' in response._container[0].decode())
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())

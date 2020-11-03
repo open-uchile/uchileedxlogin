@@ -831,7 +831,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
     def get(self, request):
         if not request.user.is_anonymous:
             if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
-                context = {'datos': '', 'auto_enroll': True, 'modo': 'honor', 'send_email': False}
+                context = {'datos': '', 'auto_enroll': True, 'modo': 'honor', 'send_email': True}
                 return render(request, 'edxlogin/external.html', context)
             else:
                 logger.error("User dont have permission or is not staff, user: {}".format(request.user))
@@ -867,7 +867,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
             if len(context) > 5:
                 return render(request, 'edxlogin/external.html', context)
 
-            lista_saved = self.enroll_create_user(
+            lista_saved, lista_not_saved = self.enroll_create_user(
                 request, lista_data, enroll)
             redirect_url = request.build_absolute_uri('/courses/{}/course'.format(course_id))
             login_url = request.build_absolute_uri('/login')
@@ -875,7 +875,10 @@ class EdxLoginExternal(View, Content, ContentStaff):
             email_saved = []
             for email in lista_saved:
                 if send_email:
-                    enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url)
+                    if email['email_d'] != email['email_o']:
+                        enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, email['email_o'])
+                    else:
+                        enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, '')
                 aux = email
                 aux.pop('password', None)
                 email_saved.append(aux)
@@ -883,12 +886,14 @@ class EdxLoginExternal(View, Content, ContentStaff):
             context = {
                 'datos': '',
                 'auto_enroll': True,
-                'send_email': False,
+                'send_email': True,
                 'modo': 'honor',
                 'action_send': send_email
             }
             if len(email_saved) > 0:
                 context['lista_saved'] = email_saved
+            if len(lista_not_saved) > 0:
+                context['lista_not_saved'] = lista_not_saved
             return render(request, 'edxlogin/external.html', context)
 
         else:
@@ -986,10 +991,12 @@ class EdxLoginExternal(View, Content, ContentStaff):
             if email or rut exists not saved them
         """
         lista_saved = []
+        lista_not_saved = []
         # guarda el form
         with transaction.atomic():
             for dato in lista_data:
                 dato = [d.strip() for d in dato]
+                dato[1] = dato[1].lower()
                 if len(dato) == 3:
                     dato[2] = dato[2].upper()
                     dato[2] = dato[2].replace("-", "")
@@ -1014,17 +1021,20 @@ class EdxLoginExternal(View, Content, ContentStaff):
                             aux_user = True
                     else:
                         edxlogin_user = self.create_user_with_run(dato, aux_pass)
-                    self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
-                    lista_saved.append({
-                        'email_o': aux_email,
-                        'email_d': edxlogin_user.user.email,
-                        'nombreCompleto': edxlogin_user.user.profile.name.strip(),
-                        'rut': dato[2],
-                        'rut_aux': aux_rut,
-                        'password': aux_pass,
-                        'sso': edxlogin_user.have_sso,
-                        'exists': aux_user
-                    })
+                    if edxlogin_user is None:
+                        lista_not_saved.append([aux_email, dato[2]])
+                    else:
+                        self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                        lista_saved.append({
+                            'email_o': aux_email,
+                            'email_d': edxlogin_user.user.email,
+                            'nombreCompleto': edxlogin_user.user.profile.name.strip(),
+                            'rut': dato[2],
+                            'rut_aux': aux_rut,
+                            'password': aux_pass,
+                            'sso': edxlogin_user.have_sso,
+                            'exists': aux_user
+                        })
                 else:
                     if dato[1] != 'null':
                         user_data = {
@@ -1048,7 +1058,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
                         'sso': False,
                         'exists': aux_user
                     })
-        return lista_saved
+        return lista_saved, lista_not_saved
 
     def create_user_with_run(self, dato, aux_pass):
         """
@@ -1064,7 +1074,8 @@ class EdxLoginExternal(View, Content, ContentStaff):
             return edxlogin_user
         except Exception:
             with transaction.atomic():
-                #if dato[1](email) is 'null' user is created with invalid email
+                if dato[1] == 'null':
+                    return None
                 user_data = {
                     'email': dato[1],
                     'nombreCompleto':dato[0],
@@ -1085,6 +1096,8 @@ class EdxLoginExternal(View, Content, ContentStaff):
         """
         with transaction.atomic():
             user_data['email'] = dato[1] if dato[1] != 'null' else self.get_user_email(user_data['rut'])
+            if user_data['email'] == 'null':
+                return None
             user = self.create_user_by_data(user_data)
             edxlogin_user = EdxLoginUser.objects.create(
                 user=user,
