@@ -198,9 +198,19 @@ class Content(object):
         if 'apellidoPaterno' not in user_data or 'apellidoMaterno' not in user_data or 'nombres' not in user_data:
             aux_username = user_data['nombreCompleto'].replace("."," ")
             aux_username = aux_username.replace("-"," ").split(" ")
-            i = int(len(aux_username)/2)
-            aux_first_name = aux_username[0:i]
-            aux_last_name = aux_username[i:]
+            if len(aux_username) > 1:
+                i = int(len(aux_username)/2)
+                aux_first_name = aux_username[0:i]
+                aux_last_name = aux_username[i:]
+            else:
+                unidecode_username = unidecode.unidecode(aux_username[0])
+                if User.objects.filter(username=unidecode_username).exists():
+                    for i in range(1, 10000):
+                        name_tmp = unidecode_username + str(i)
+                        if not User.objects.filter(username=name_tmp).exists():
+                            return name_tmp
+                else:
+                    return unidecode_username
         else:
             aux_last_name = ((user_data['apellidoPaterno'] or '') +
                             " " + (user_data['apellidoMaterno'] or '')).strip()
@@ -927,10 +937,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
                         aux_name = data[0].lower()
                         aux_name = aux_name.replace("."," ")
                         aux_name = aux_name.replace("-"," ")
-                        if len(aux_name.split(" ")) == 1:
-                            logger.error("EdxLoginExternal - Wrong Name, not lastname, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
-                            wrong_data.append(data)
-                        elif not re.match(regex_names, unidecode.unidecode(aux_name)):
+                        if not re.match(regex_names, unidecode.unidecode(aux_name)):
                             logger.error("EdxLoginExternal - Wrong Name, not allowed specials characters or numbers, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
                             wrong_data.append(data)
                         elif not re.match(regex, data[1].lower()):
