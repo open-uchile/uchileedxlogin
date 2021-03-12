@@ -658,8 +658,10 @@ class EdxLoginStaff(View, Content, ContentStaff):
                 return JsonResponse(context)
 
             if action in ["enroll", "staff_enroll"]:
+                request_course = request.POST.get("course", "")
+                request_mode = request.POST.get("modes", None)
                 context = self.enroll_or_create_user(
-                    request, lista_run, force, enroll)
+                    request_course, request_mode, lista_run, force, enroll)
                 if action in ["enroll"]:
                     return JsonResponse(context)
                 return render(request, 'edxlogin/staff.html', context)
@@ -670,7 +672,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
         else:
             raise Http404()
 
-    def enroll_or_create_user(self, request, lista_run, force, enroll):
+    def enroll_or_create_user(self, course_id, mode, lista_run, force, enroll):
         """
             Enroll/force enroll users
         """
@@ -687,9 +689,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
                 try:
                     edxlogin_user = EdxLoginUser.objects.get(run=run)
                     self.enroll_course(
-                        edxlogin_user, request.POST.get(
-                            "course", ""), enroll, request.POST.get(
-                            "modes", None))
+                        edxlogin_user, course_id, enroll, mode)
                     if enroll:
                         run_saved_enroll += edxlogin_user.user.username + " - " + run + " / "
                     else:
@@ -700,9 +700,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
                         edxlogin_user = self.force_create_user(run)
                     if edxlogin_user:
                         self.enroll_course(
-                            edxlogin_user, request.POST.get(
-                                "course", ""), enroll, request.POST.get(
-                                "modes", None))
+                            edxlogin_user, course_id, enroll, mode)
                         if enroll:
                             run_saved_force += edxlogin_user.user.username + " - " + run + " / "
                         else:
@@ -710,8 +708,8 @@ class EdxLoginStaff(View, Content, ContentStaff):
                     else:
                         registro = EdxLoginUserCourseRegistration()
                         registro.run = run
-                        registro.course = request.POST.get("course", "")
-                        registro.mode = request.POST.get("modes", None)
+                        registro.course = course_id
+                        registro.mode = mode
                         registro.auto_enroll = enroll
                         registro.save()
                         run_saved_pending += run + " - "
