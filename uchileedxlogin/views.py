@@ -18,9 +18,9 @@ from urllib.parse import urlencode
 from itertools import cycle
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys import InvalidKeyError
-from courseware.courses import get_course_by_id, get_course_with_access
-from courseware.access import has_access
-from util.json_request import JsonResponse, JsonResponseBadRequest
+from lms.djangoapps.courseware.courses import get_course_by_id, get_course_with_access
+from lms.djangoapps.courseware.access import has_access
+from common.djangoapps.util.json_request import JsonResponse, JsonResponseBadRequest
 
 import json
 import requests
@@ -155,7 +155,7 @@ class Content(object):
         Create the user by the Django model
         """
         from openedx.core.djangoapps.user_authn.views.registration_form import AccountCreationForm
-        from student.helpers import do_create_account
+        from common.djangoapps.student.helpers import do_create_account
 
         # Check and remove email if its already registered
         user_pass = "invalid" if 'pass' not in user_data else user_data['pass']  # Temporary password
@@ -175,7 +175,7 @@ class Content(object):
         user, _, reg = do_create_account(form)
         reg.activate()
         reg.save()
-        from student.models import create_comments_service_user
+        from common.djangoapps.student.models import create_comments_service_user
         create_comments_service_user(user)
 
         if 'pass' not in user_data:
@@ -384,7 +384,7 @@ class ContentStaff(object):
         Enroll the user in the pending courses, removing the enrollments when
         they are applied.
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         if enroll:
             CourseEnrollment.enroll(
@@ -586,7 +586,7 @@ class EdxLoginCallback(View, Content):
         Enroll the user in the pending courses, removing the enrollments when
         they are applied.
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
         registrations = EdxLoginUserCourseRegistration.objects.filter(
             run=edxlogin_user.run)
         for item in registrations:
@@ -731,7 +731,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
         """
             Unenroll user
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         run_unenroll_pending = ""
         run_unenroll_enroll = ""
@@ -1115,7 +1115,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
         """
             Enroll the user in the course.
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         if enroll:
             CourseEnrollment.enroll(

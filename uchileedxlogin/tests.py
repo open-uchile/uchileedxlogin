@@ -10,19 +10,18 @@ from django.contrib.auth.models import Permission, User
 from django.contrib.contenttypes.models import ContentType
 from urllib.parse import parse_qs
 from opaque_keys.edx.locator import CourseLocator
-from student.tests.factories import CourseEnrollmentAllowedFactory, UserFactory, CourseEnrollmentFactory
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-from student.roles import CourseInstructorRole, CourseStaffRole
+from common.djangoapps.student.tests.factories import CourseEnrollmentAllowedFactory, UserFactory, CourseEnrollmentFactory
+from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRole
 import re
 import json
 import urllib.parse
 
 from .views import EdxLoginLoginRedirect, EdxLoginCallback, EdxLoginStaff
 from .models import EdxLoginUserCourseRegistration, EdxLoginUser
-# Create your tests here.
 
 
 class TestRedirectView(TestCase):
