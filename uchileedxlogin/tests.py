@@ -1961,20 +1961,24 @@ class TestExternalView(ModuleStoreTestCase):
         self.assertTrue(User.objects.filter(username='student3', email="student4@student.cl").exists())
         self.assertTrue(User.objects.filter(username='student4', email="student5@student.cl").exists())
 
-    def test_external_post_wrong_name_special_chatacter(self):
+    def test_external_post_without_run_name_with_special_character_2(self):
         """
-            Test external view post with special character
+            Test external view post, name with special characters
         """
         post_data = {
-            'datos': 'asd$asd ads#ad, adsad@adsa.cl',
+            'datos': 'asd$asd ads#ad, adsertad@adsa.cl\nhola_ hola mundo mundo, hola@mundo.com',
             'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
+        self.assertFalse(User.objects.filter(email="adsertad@adsa.cl").exists())
         response = self.client.post(
             reverse('uchileedxlogin-login:external'), post_data)
         self.assertEqual(response.status_code, 200)
-        self.assertTrue('id="wrong_data"' in response._container[0].decode())
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        user_created = User.objects.get(email="adsertad@adsa.cl")
+        user_created_2 = User.objects.get(email="hola@mundo.com")
+        self.assertEqual(user_created_2.username, 'hola__mundo')
 
     def test_external_post_without_run_name_with_special_character(self):
         """
