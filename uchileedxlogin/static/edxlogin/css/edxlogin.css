@@ -1,0 +1,20 @@
+.instructor-dashboard-wrapper-2 section.idash-section#membership .batch-enrollment-run textarea{
+    margin-top: 0.2em;
+    height: auto;
+    width: 90%;
+  }
+.instructor-dashboard-wrapper-2 section.idash-section#membership .membership-run-section legend {
+    font-size: 1.2em;
+    margin-bottom: 15px;
+}
+.instructor-dashboard-wrapper-2 section.idash-section#membership .membership-run-section {
+    margin-bottom: 30px;
+}
+.instructor-dashboard-wrapper-2 section.idash-section#membership .batch-enrollment-run .role{
+    margin: 20px 0;
+}
+.instructor-dashboard-content-2 .request-response {
+    margin: 0;
+    padding-bottom: 20px;
+    color: #36abc7;
+}

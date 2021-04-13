@@ -18,9 +18,9 @@ from urllib.parse import urlencode
 from itertools import cycle
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys import InvalidKeyError
-from courseware.courses import get_course_by_id, get_course_with_access
-from courseware.access import has_access
-from util.json_request import JsonResponse, JsonResponseBadRequest
+from lms.djangoapps.courseware.courses import get_course_by_id, get_course_with_access
+from lms.djangoapps.courseware.access import has_access
+from common.djangoapps.util.json_request import JsonResponse, JsonResponseBadRequest
 
 import json
 import requests
@@ -33,7 +33,7 @@ import re
 from django.contrib.auth.base_user import BaseUserManager
 logger = logging.getLogger(__name__)
 regex = r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$'
-regex_names = r'^[A-Za-z\s\-\.]+$'
+regex_names = r'^[A-Za-z\s\_]+$'
 
 
 def require_post_action():
@@ -155,8 +155,7 @@ class Content(object):
         Create the user by the Django model
         """
         from openedx.core.djangoapps.user_authn.views.registration_form import AccountCreationForm
-        from student.helpers import do_create_account
-
+        from common.djangoapps.student.helpers import do_create_account
         # Check and remove email if its already registered
         user_pass = "invalid" if 'pass' not in user_data else user_data['pass']  # Temporary password
         if user_data['email'] == 'null':
@@ -171,12 +170,11 @@ class Content(object):
             tos_required=False,
             ignore_email_blacklist=True
         )
-
         user, _, reg = do_create_account(form)
         reg.activate()
         reg.save()
-        from student.models import create_comments_service_user
-        create_comments_service_user(user)
+        #from common.djangoapps.student.models import create_comments_service_user
+        #create_comments_service_user(user)
 
         if 'pass' not in user_data:
             # Invalidate the user password, as it will be never be used
@@ -196,33 +194,33 @@ class Content(object):
         5. return first_name[0] + "_" + last_name[0] + N
         """
         if 'apellidoPaterno' not in user_data or 'apellidoMaterno' not in user_data or 'nombres' not in user_data:
-            aux_username = user_data['nombreCompleto'].replace("."," ")
-            aux_username = aux_username.replace("-"," ").split(" ")
+            aux_username = unidecode.unidecode(user_data['nombreCompleto'].lower())
+            aux_username = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_username)
+            aux_username = aux_username.split(" ")
             if len(aux_username) > 1:
                 i = int(len(aux_username)/2)
                 aux_first_name = aux_username[0:i]
                 aux_last_name = aux_username[i:]
             else:
-                unidecode_username = unidecode.unidecode(aux_username[0])
-                if User.objects.filter(username=unidecode_username).exists():
+                if User.objects.filter(username=aux_username[0]).exists():
                     for i in range(1, 10000):
-                        name_tmp = unidecode_username + str(i)
+                        name_tmp = aux_username[0] + str(i)
                         if not User.objects.filter(username=name_tmp).exists():
                             return name_tmp
                 else:
-                    return unidecode_username
+                    return aux_username[0]
         else:
             aux_last_name = ((user_data['apellidoPaterno'] or '') +
                             " " + (user_data['apellidoMaterno'] or '')).strip()
+            aux_last_name = unidecode.unidecode(aux_last_name)
+            aux_last_name = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_last_name)
             aux_last_name = aux_last_name.split(" ")
-            aux_first_name = user_data['nombres'].replace("."," ").split(" ")
+            aux_first_name = unidecode.unidecode(user_data['nombres'])
+            aux_first_name = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_first_name)
+            aux_first_name = aux_first_name.split(" ")
 
-        first_name = [
-            unidecode.unidecode(x).replace(
-                ' ', '_') for x in aux_first_name]
-        last_name = [
-            unidecode.unidecode(x).replace(
-                ' ', '_') for x in aux_last_name]
+        first_name = aux_first_name
+        last_name = aux_last_name
 
         # 1.
         test_name = first_name[0] + "_" + last_name[0]
@@ -384,7 +382,7 @@ class ContentStaff(object):
         Enroll the user in the pending courses, removing the enrollments when
         they are applied.
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         if enroll:
             CourseEnrollment.enroll(
@@ -586,7 +584,7 @@ class EdxLoginCallback(View, Content):
         Enroll the user in the pending courses, removing the enrollments when
         they are applied.
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
         registrations = EdxLoginUserCourseRegistration.objects.filter(
             run=edxlogin_user.run)
         for item in registrations:
@@ -731,7 +729,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
         """
             Unenroll user
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         run_unenroll_pending = ""
         run_unenroll_enroll = ""
@@ -932,11 +930,10 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     if len(data) == 2:
                         data.append("")
                     if data[0] != "" and data[1] != "":
-                        aux_name = data[0].lower()
-                        aux_name = aux_name.replace("."," ")
-                        aux_name = aux_name.replace("-"," ")
-                        if not re.match(regex_names, unidecode.unidecode(aux_name)):
-                            logger.error("EdxLoginExternal - Wrong Name, not allowed specials characters or numbers, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                        aux_name = unidecode.unidecode(data[0].lower())
+                        aux_name = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_name)
+                        if not re.match(regex_names, aux_name):
+                            logger.error("EdxLoginExternal - Wrong Name, not allowed specials characters, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
                             wrong_data.append(data)
                         elif not re.match(regex, data[1].lower()):
                             logger.error("EdxLoginExternal - Wrong Email {}, user: {}, wrong_data: {}".format(data[1].lower(), request.user.id, wrong_data))
@@ -1115,7 +1112,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
         """
             Enroll the user in the course.
         """
-        from student.models import CourseEnrollment, CourseEnrollmentAllowed
+        from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
 
         if enroll:
             CourseEnrollment.enroll(
