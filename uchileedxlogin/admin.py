@@ -5,6 +5,7 @@ from .models import EdxLoginUser, EdxLoginUserCourseRegistration
 
 
 class EdxLoginUserAdmin(admin.ModelAdmin):
+    raw_id_fields = ('user',)
     list_display = ('run', 'user')
     search_fields = ['run', 'user__username']
     ordering = ['-run']
