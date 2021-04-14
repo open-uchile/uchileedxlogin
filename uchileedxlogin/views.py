@@ -759,8 +759,8 @@ class EdxLoginStaff(View, Content, ContentStaff):
 
                     enrollment = CourseEnrollment.get_enrollment(
                         edxlogin_user.user, course_key)
-                    enrollment.is_active = 0
                     if enrollment:
+                        enrollment.is_active = 0
                         run_unenroll_enroll += edxlogin_user.user.username + " - " + run + " / "
                         enrollment.save()
 
