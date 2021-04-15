@@ -68,8 +68,20 @@ validate_error = function(data) {
   if ("no_run" in data){
     aux_error = aux_error + "Falta agregar rut.</br>";
   }
-  if ("curso2" in data || "error_curso" in data){
-    aux_error = aux_error + "El id del curso no corresponde a un curso existente, actualice la página e intentelo nuevamente</br>";
+  if ("curso2" in data){
+    aux_error = aux_error + "No se ha ingresado el id del curso, actualice la página e intentelo nuevamente</br>";
+  }
+  if ("error_curso" in data){
+    aux_error = aux_error + "Los siguientes ids de curso no exiten, actualice la página e intentelo nuevamente:</br>";
+    data.error_curso.forEach(course_id => {
+      aux_error = aux_error + course_id + "</br>";
+    });
+  }
+  if ("error_permission" in data){
+    aux_error = aux_error + "Usuario no tiene permiso suficientes en los siguientes cursos:</br>";
+    data.error_permission.forEach(course_id => {
+      aux_error = aux_error + course_id + "</br>";
+    });
   }
   if ("error_mode" in data){
     aux_error = aux_error + "El rol del usuario esta incorrecto, actualice la página</br>";
@@ -106,31 +118,16 @@ validate_success = function(data) {
     clear_input();
   }
   if ("saved" in data && data.saved == "unenroll"){
-    if (data.run_unenroll['run_unenroll_enroll'] != "" || data.run_unenroll['run_unenroll_enroll_allowed'] != "" || data.run_unenroll['run_unenroll_pending'] != ""){
+    if (data.run_unenroll.length > 0 ){
       aux_success = aux_success + "<b>Ruts desinscrito correctamente: </b></br>";
-      var run_unenroll_enroll = data.run_unenroll['run_unenroll_enroll'].split(" / ")
-      var run_unenroll_enroll_allowed = data.run_unenroll['run_unenroll_enroll_allowed'].split(" / ")
-      var run_unenroll_pending = data.run_unenroll['run_unenroll_pending'].split(" / ")
-      if (data.run_unenroll['run_unenroll_enroll'] != ''){
-        run_unenroll_enroll.forEach(run => {
+      data.run_unenroll.forEach(run => {
           aux_success = aux_success + run + "</br>";
-        });
-      }
-      if (data.run_unenroll['run_unenroll_enroll_allowed'] != ''){
-        run_unenroll_enroll_allowed.forEach(run => {
-          aux_success = aux_success + run + "</br>";
-        });
-      }
-      if (data.run_unenroll['run_unenroll_pending'] != ''){
-        run_unenroll_pending.forEach(run => {
-          aux_success = aux_success + run + "</br>";
-        });
-      }
+      });
     }
-    if (data.run_unenroll['run_no_exists'] != ""){
-      aux_success = aux_success + "<b>Los siguientes ruts no fueron encontrados en la plataforma: </b></br>";
-      var run_no_exists = data.run_unenroll['run_no_exists'].split(" - ")
-      run_no_exists.forEach(run => {
+
+    if (data.run_unenroll_no_exists.length > 0){
+      aux_success = aux_success + "<b>Los siguientes ruts no estaban inscritos en el curso: </b></br>";
+      data.run_unenroll_no_exists.forEach(run => {
         aux_success = aux_success + run + "</br>";
       });
     }

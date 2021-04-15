@@ -33,6 +33,15 @@
 	}
 }
 
+#course{
+    overflow: auto;
+    min-width: 400px;
+    min-height: 40px;
+    font-style: normal; 
+    font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    width: 400px;
+    margin-right: 11px;
+}
 </style>
 <div class="row">
     <div class="col-md-4">       
@@ -103,7 +112,18 @@
                 <p id="curso2" style="color:firebrick; margin-bottom: 15px;">Falta agregar curso.</p>
             % endif
             % if context.get('error_curso', UNDEFINED) is not UNDEFINED:
-                <p id="error_curso" style="color:firebrick; margin-bottom: 15px;">Curso no existe.</p>
+                <p id="error_curso" style="color:firebrick; margin-bottom: 15px;"><b>Los siguientes ids de curso no exiten:</b></br>
+                    %for curso_id in error_curso:
+                        ${curso_id}
+                        </br>
+                    %endfor</p>
+            % endif
+            % if context.get('error_permission', UNDEFINED) is not UNDEFINED:
+                <p id="error_permission" style="color:firebrick; margin-bottom: 15px;"><b>Usuario no tiene permiso suficientes en los siguientes cursos:</b></br>
+                    %for curso_id in error_permission:
+                        ${curso_id}
+                        </br>
+                    %endfor</p>
             % endif
             % if context.get('error_mode', UNDEFINED) is not UNDEFINED:
                 <p style="color:firebrick; margin-bottom: 15px;">El modo esta incorrecto.</p>
@@ -115,20 +135,15 @@
                 <label for="runs" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">RUN(s):</label>
                 
                 % if context.get('runs', UNDEFINED) is not UNDEFINED:
-                    <textarea style="min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif" type="text" name='runs' id="runs" placeholder="12345678-k&#10;12345678-k">${runs}</textarea>                    
+                    <textarea style="min-height: 40px;min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif" type="text" name='runs' id="runs" placeholder="12345678-k&#10;12345678-k">${runs}</textarea>                    
                 % else:
-                    <textarea style="min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif" type="text" name='runs' id="runs" placeholder="12345678-k&#10;12345678-k"></textarea>
+                    <textarea style="min-height: 40px;min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif" type="text" name='runs' id="runs" placeholder="12345678-k&#10;12345678-k"></textarea>
                 % endif
                 
             </div>
             <div class="form-group" style="margin: 15px 15px;">
                 <label for="course" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">ID Curso:</label>
-                % if context.get('curso', UNDEFINED) is not UNDEFINED:
-                    <input style="min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;margin-right: 13px;" type="text" name='course' id="course"  placeholder="course-v1:mss+MSS001+2019_2" value="${curso}"></input>                    
-                % else:
-                    <input style="min-width: 400px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;margin-right: 13px;" type="text" name='course' id='course' placeholder="course-v1:mss+MSS001+2019_2"></input>
-                % endif
-                
+                <textarea type="text" spellcheck="false" name='course' id="course" placeholder="course-v1:mss+MSS001+2019_2&#10;course-v1:mss+MSS001+2019_2">${curso}</textarea>
             </div>
             <div class="form-group" style="margin: 15px 15px;">
                 <label for="modes" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">Modo:</label>
