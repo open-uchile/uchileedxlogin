@@ -21,7 +21,6 @@ from opaque_keys import InvalidKeyError
 from lms.djangoapps.courseware.courses import get_course_by_id, get_course_with_access
 from lms.djangoapps.courseware.access import has_access
 from common.djangoapps.util.json_request import JsonResponse, JsonResponseBadRequest
-
 import json
 import requests
 import uuid
@@ -322,7 +321,7 @@ class ContentStaff(object):
         except InvalidKeyError:
             return False
 
-    def validate_data(self, request, lista_run, context, force):
+    def validate_data(self, user, lista_run, context, force):
         """
             Verify if the data if valid
         """
@@ -351,26 +350,40 @@ class ContentStaff(object):
             context['run_malos'] = run_malos
 
         # valida curso
-        if request.POST.get("course", "") == "":
+        if context['curso'] == "":
             context['curso2'] = ''
         # valida si existe el curso
-        elif not self.validate_course(request.POST.get("course", "")):
-            context['error_curso'] = ''
+        else:
+            list_course = context['curso'].split('\n')
+            list_course = [course_id.strip() for course_id in list_course]
+            list_course = [course_id for course_id in list_course if course_id]
+            for course_id in list_course:
+                if not self.validate_course(course_id):
+                    if 'error_curso' not in context:
+                        context['error_curso'] = [course_id]
+                    else:
+                        context['error_curso'].append(course_id)
+                    logger.error("EdxLoginStaff - Course dont exists, user: {}, course_id: {}".format(user.id, course_id))
+            if 'error_curso' not in context:
+                for course_id in list_course:
+                    if not self.validate_user(user, course_id):
+                        if 'error_permission' not in context:
+                            context['error_permission'] = [course_id]
+                        else:
+                            context['error_permission'].append(course_id)
+                        logger.error("EdxLoginStaff - User dont have permission, user: {}, course_id: {}".format(user.id, course_id))
 
         # si no se ingreso run
         if not lista_run:
             context['no_run'] = ''
 
         # si el modo es incorrecto
-        if not request.POST.get(
-                "modes", None) in [
+        if not context['modo'] in [
                 x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
             context['error_mode'] = ''
 
         # si la accion es incorrecto
-        if not request.POST.get(
-                "action",
-                "") in [
+        if not context['action'] in [
                 "enroll",
                 "unenroll",
                 "staff_enroll"]:
@@ -395,42 +408,42 @@ class ContentStaff(object):
                 email=edxlogin_user.user.email,
                 user=edxlogin_user.user)
 
-    def is_course_staff(self, request, course_id):
+    def is_course_staff(self, user, course_id):
         """
             Verify if the user is staff course
         """
         try:
             course_key = CourseKey.from_string(course_id)
-            course = get_course_with_access(request.user, "load", course_key)
+            course = get_course_with_access(user, "load", course_key)
 
-            return bool(has_access(request.user, 'staff', course))
+            return bool(has_access(user, 'staff', course))
         except Exception:
             return False
 
-    def is_instructor(self, request, course_id):
+    def is_instructor(self, user, course_id):
         """
             Verify if the user is instructor
         """
         try:
             course_key = CourseKey.from_string(course_id)
-            course = get_course_with_access(request.user, "load", course_key)
+            course = get_course_with_access(user, "load", course_key)
 
-            return bool(has_access(request.user, 'instructor', course))
+            return bool(has_access(user, 'instructor', course))
         except Exception:
             return False
 
-    def validate_user(self, request, course_id):
+    def validate_user(self, user, course_id):
         """
             Verify if the user have permission
         """
         access = False
-        if not request.user.is_anonymous:
-            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff'):
-                if request.user.is_staff:
+        if not user.is_anonymous:
+            if user.has_perm('uchileedxlogin.uchile_instructor_staff'):
+                if user.is_staff:
                     access = True
-                if self.is_instructor(request, course_id):
+                if self.is_instructor(user, course_id):
                     access = True
-                if self.is_course_staff(request, course_id):
+                if self.is_course_staff(user, course_id):
                     access = True
         return access
 
@@ -606,7 +619,7 @@ class EdxLoginStaff(View, Content, ContentStaff):
     def get(self, request):
         if not request.user.is_anonymous:
             if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
-                context = {'runs': '', 'auto_enroll': True, 'modo': 'audit'}
+                context = {'runs': '', 'auto_enroll': True, 'modo': 'audit', 'curso':''}
                 return render(request, 'edxlogin/staff.html', context)
             else:
                 logger.error("User dont have permission or is not staff, user: {}".format(request.user))
@@ -616,61 +629,67 @@ class EdxLoginStaff(View, Content, ContentStaff):
 
     @require_post_action()
     def post(self, request):
-        course_id = request.POST.get("course", "")
-        if self.validate_user(request, course_id):
-            action = request.POST.get("action", "")
-            lista_run = request.POST.get("runs", "").split('\n')
-            # limpieza de los run ingresados
-            lista_run = [run.upper() for run in lista_run]
-            lista_run = [run.replace("-", "") for run in lista_run]
-            lista_run = [run.replace(".", "") for run in lista_run]
-            lista_run = [run.strip() for run in lista_run]
-            lista_run = [run for run in lista_run if run]
+        if not request.user.is_anonymous:
+            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
+                action = request.POST.get("action", "")
+                lista_run = request.POST.get("runs", "").split('\n')
+                # limpieza de los run ingresados
+                lista_run = [run.upper() for run in lista_run]
+                lista_run = [run.replace("-", "") for run in lista_run]
+                lista_run = [run.replace(".", "") for run in lista_run]
+                lista_run = [run.strip() for run in lista_run]
+                lista_run = [run for run in lista_run if run]
 
-            # verifica si el checkbox de auto enroll fue seleccionado
-            enroll = False
-            if request.POST.getlist("enroll"):
-                enroll = True
+                # verifica si el checkbox de auto enroll fue seleccionado
+                enroll = False
+                if request.POST.getlist("enroll"):
+                    enroll = True
 
-            # verifica si el checkbox de forzar creacion de usuario fue
-            # seleccionado
-            force = False
-            if request.POST.getlist("force"):
-                force = True
+                # verifica si el checkbox de forzar creacion de usuario fue
+                # seleccionado
+                force = False
+                if request.POST.getlist("force"):
+                    force = True
 
-            context = {
-                'runs': request.POST.get('runs'),
-                'curso': request.POST.get(
-                    "course",
-                    ""),
-                'auto_enroll': enroll,
-                'modo': request.POST.get(
-                    "modes",
-                    None)}
-            # validacion de datos
-            context = self.validate_data(request, lista_run, context, force)
-            # retorna si hubo al menos un error
-            if len(context) > 4 and action not in ["enroll", "unenroll"]:
-                return render(request, 'edxlogin/staff.html', context)
-            if len(context) > 4 and action in ["enroll", "unenroll"]:
-                return JsonResponse(context)
-
-            if action in ["enroll", "staff_enroll"]:
-                request_course = request.POST.get("course", "")
-                request_mode = request.POST.get("modes", None)
-                context = self.enroll_or_create_user(
-                    request_course, request_mode, lista_run, force, enroll)
-                if action in ["enroll"]:
+                context = {
+                    'runs': request.POST.get('runs'),
+                    'action': action,
+                    'curso': request.POST.get(
+                        "course",
+                        ""),
+                    'auto_enroll': enroll,
+                    'modo': request.POST.get(
+                        "modes",
+                        None)}
+                # validacion de datos
+                context = self.validate_data(request.user, lista_run, context, force)
+                # retorna si hubo al menos un error
+                if len(context) > 5 and action not in ["enroll", "unenroll"]:
+                    return render(request, 'edxlogin/staff.html', context)
+                if len(context) > 5 and action in ["enroll", "unenroll"]:
                     return JsonResponse(context)
-                return render(request, 'edxlogin/staff.html', context)
 
-            elif action == "unenroll":
-                context = self.unenroll_user(request, lista_run)
-                return JsonResponse(context)
+                list_course = context['curso'].split('\n')
+                list_course = [course_id.strip() for course_id in list_course]
+                list_course = [course_id for course_id in list_course if course_id]
+                if action in ["enroll", "staff_enroll"]:
+                    context = self.enroll_or_create_user(
+                        list_course, context['modo'], lista_run, force, enroll)
+                    if action in ["enroll"]:
+                        return JsonResponse(context)
+                    return render(request, 'edxlogin/staff.html', context)
+
+                elif action == "unenroll":
+                    context = self.unenroll_user(list_course, lista_run)
+                    return JsonResponse(context)
+            else:
+                logger.error("User dont have permission or is not staff, user: {}".format(request.user))
+                raise Http404()
         else:
+            logger.error("EdxLoginStaff - User is Anonymous")
             raise Http404()
 
-    def enroll_or_create_user(self, course_id, mode, lista_run, force, enroll):
+    def enroll_or_create_user(self, course_ids, mode, lista_run, force, enroll):
         """
             Enroll/force enroll users
         """
@@ -686,8 +705,9 @@ class EdxLoginStaff(View, Content, ContentStaff):
                     run = "0" + run
                 try:
                     edxlogin_user = EdxLoginUser.objects.get(run=run)
-                    self.enroll_course(
-                        edxlogin_user, course_id, enroll, mode)
+                    for course_id in course_ids:
+                        self.enroll_course(
+                            edxlogin_user, course_id, enroll, mode)
                     if enroll:
                         run_saved_enroll += edxlogin_user.user.username + " - " + run + " / "
                     else:
@@ -697,19 +717,21 @@ class EdxLoginStaff(View, Content, ContentStaff):
                     if force:
                         edxlogin_user = self.force_create_user(run)
                     if edxlogin_user:
-                        self.enroll_course(
-                            edxlogin_user, course_id, enroll, mode)
+                        for course_id in course_ids:
+                            self.enroll_course(
+                                edxlogin_user, course_id, enroll, mode)
                         if enroll:
                             run_saved_force += edxlogin_user.user.username + " - " + run + " / "
                         else:
                             run_saved_force_no_auto += edxlogin_user.user.username + " - " + run + " / "
                     else:
-                        registro = EdxLoginUserCourseRegistration()
-                        registro.run = run
-                        registro.course = course_id
-                        registro.mode = mode
-                        registro.auto_enroll = enroll
-                        registro.save()
+                        for course_id in course_ids:
+                            registro = EdxLoginUserCourseRegistration()
+                            registro.run = run
+                            registro.course = course_id
+                            registro.mode = mode
+                            registro.auto_enroll = enroll
+                            registro.save()
                         run_saved_pending += run + " - "
         run_saved = {
             'run_saved_force': run_saved_force[:-3],
@@ -720,70 +742,61 @@ class EdxLoginStaff(View, Content, ContentStaff):
         }
         return {
             'runs': '',
+            'curso': '',
             'auto_enroll': True,
             'modo': 'audit',
             'saved': 'saved',
             'run_saved': run_saved}
 
-    def unenroll_user(self, request, lista_run):
+    def unenroll_user(self, course_ids, lista_run):
         """
             Unenroll user
         """
         from common.djangoapps.student.models import CourseEnrollment, CourseEnrollmentAllowed
 
-        run_unenroll_pending = ""
-        run_unenroll_enroll = ""
-        run_unenroll_enroll_allowed = ""
-        run_no_exists = ""
+        course_keys = [CourseKey.from_string(course_id) for course_id in course_ids]
+        lista_run_format = []
+        run_unenroll_pending = []
+        run_unenroll_allowed = []
+        run_unenroll_enroll = []
+        for run in lista_run:
+            while len(run) < 10 and 'P' != run[0] and 'CG' != run[0:2]:
+                run = "0" + run
+            lista_run_format.append(run)
 
-        course_id = request.POST.get("course", "")
-        course_key = CourseKey.from_string(course_id)
         with transaction.atomic():
-            for run in lista_run:
-                while len(run) < 10 and 'P' != run[0]:
-                    run = "0" + run
-                try:
-                    edxlogin_user = EdxLoginUser.objects.get(run=run)
-
-                    registrations = EdxLoginUserCourseRegistration.objects.filter(
-                        run=run, course=course_key)
-                    if registrations:
-                        run_unenroll_pending += edxlogin_user.user.username + " - " + run + " / "
-                        registrations.delete()
-
-                    enrollmentAllowed = CourseEnrollmentAllowed.objects.filter(
-                        course_id=course_key, user=edxlogin_user.user)
-                    if enrollmentAllowed:
-                        run_unenroll_enroll_allowed += edxlogin_user.user.username + " - " + run + " / "
-                        enrollmentAllowed.delete()
-
-                    enrollment = CourseEnrollment.get_enrollment(
-                        edxlogin_user.user, course_key)
-                    if enrollment:
-                        enrollment.is_active = 0
-                        run_unenroll_enroll += edxlogin_user.user.username + " - " + run + " / "
-                        enrollment.save()
-
-                except EdxLoginUser.DoesNotExist:
-                    registrations = EdxLoginUserCourseRegistration.objects.filter(
-                        run=run, course=course_key)
-                    if registrations:
-                        run_unenroll_pending += " No Registrado - " + run + " / "
-                        registrations.delete()
-                    else:
-                        run_no_exists += run + " - "
-
-        run_unenroll = {
-            'run_unenroll_pending': run_unenroll_pending[:-3],
-            'run_unenroll_enroll': run_unenroll_enroll[:-3],
-            'run_unenroll_enroll_allowed': run_unenroll_enroll_allowed[:-3],
-            'run_no_exists': run_no_exists[:-3],
-        }
+            edxlogin_users = EdxLoginUser.objects.filter(run__in=lista_run_format)
+            #unenroll EdxLoginUserCourseRegistration
+            registrations = EdxLoginUserCourseRegistration.objects.filter(
+                run__in=lista_run_format, course__in=course_keys)
+            if registrations:
+                run_unenroll_pending = [x.run for x in registrations]
+                registrations.delete()
+            #unenroll CourseEnrollmentAllowed
+            enrollmentAllowed = CourseEnrollmentAllowed.objects.filter(
+                course_id__in=course_keys, user__edxloginuser__in=edxlogin_users)
+            if enrollmentAllowed:
+                run_unenroll_allowed = [x.user.edxloginuser.run for x in enrollmentAllowed]
+                enrollmentAllowed.delete()
+            #unenroll CourseEnrollment
+            enrollment = CourseEnrollment.objects.filter(user__edxloginuser__in=edxlogin_users, course_id__in=course_keys)
+            if enrollment:
+                run_unenroll_enroll = [x.user.edxloginuser.run for x in enrollment]
+                enrollment.update(is_active=0)
+        aux_run_unenroll = run_unenroll_pending
+        aux_run_unenroll.extend(run_unenroll_allowed)
+        aux_run_unenroll.extend(run_unenroll_enroll)
+        run_unenroll = []
+        for i in aux_run_unenroll:
+            if i not in run_unenroll:
+                run_unenroll.append(i)
+        run_unenroll_no_exists = [x for x in lista_run_format if x not in run_unenroll]
         return {
             'runs': '',
             'auto_enroll': True,
             'modo': 'honor',
             'saved': 'unenroll',
+            'run_unenroll_no_exists': run_unenroll_no_exists,
             'run_unenroll': run_unenroll}
 
     def force_create_user(self, run):
@@ -837,7 +850,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
     def get(self, request):
         if not request.user.is_anonymous:
             if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
-                context = {'datos': '', 'auto_enroll': True, 'modo': 'honor', 'send_email': True}
+                context = {'datos': '', 'auto_enroll': True, 'modo': 'honor', 'send_email': True, 'curso': ''}
                 return render(request, 'edxlogin/external.html', context)
             else:
                 logger.error("EdxLoginExternal - User dont have permission or is not staff, user: {}".format(request.user))
@@ -846,77 +859,85 @@ class EdxLoginExternal(View, Content, ContentStaff):
         raise Http404()
 
     def post(self, request):
-        course_id = request.POST.get("course", "")
-        if self.validate_user(request, course_id):
-            lista_data = request.POST.get("datos", "").split('\n')
-            # limpieza de los datos ingresados
-            lista_data = [run.strip() for run in lista_data]
-            lista_data = [run for run in lista_data if run]
-            lista_data = [d.split(",") for d in lista_data]
-            # verifica si el checkbox de auto enroll fue seleccionado
-            enroll = False
-            if request.POST.getlist("enroll"):
-                enroll = True
-            # verifica si el checkbox de send_email fue seleccionado
-            send_email = False
-            if request.POST.getlist("send_email"):
-                send_email = True
-            context = {
-                'datos': request.POST.get('datos'),
-                'curso': course_id,
-                'auto_enroll': enroll,
-                'send_email': send_email,
-                'modo': request.POST.get("modes", None)}
-            # validacion de datos
-            context = self.validate_data_external(request, lista_data, context)
-            # retorna si hubo al menos un error
-            if len(context) > 5:
+        if not request.user.is_anonymous:
+            if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
+                lista_data = request.POST.get("datos", "").split('\n')
+                # limpieza de los datos ingresados
+                lista_data = [run.strip() for run in lista_data]
+                lista_data = [run for run in lista_data if run]
+                lista_data = [d.split(",") for d in lista_data]
+                # verifica si el checkbox de auto enroll fue seleccionado
+                enroll = False
+                if request.POST.getlist("enroll"):
+                    enroll = True
+                # verifica si el checkbox de send_email fue seleccionado
+                send_email = False
+                if request.POST.getlist("send_email"):
+                    send_email = True
+                context = {
+                    'datos': request.POST.get('datos'),
+                    'curso': request.POST.get("course", ""),
+                    'auto_enroll': enroll,
+                    'send_email': send_email,
+                    'modo': request.POST.get("modes", None)}
+                # validacion de datos
+                context = self.validate_data_external(request.user, lista_data, context)
+                # retorna si hubo al menos un error
+                if len(context) > 5:
+                    return render(request, 'edxlogin/external.html', context)
+                list_course = context['curso'].split('\n')
+                list_course = [course_id.strip() for course_id in list_course]
+                list_course = [course_id for course_id in list_course if course_id]
+
+                lista_saved, lista_not_saved = self.enroll_create_user(
+                    list_course, context['modo'], lista_data, enroll)
+
+                login_url = request.build_absolute_uri('/login')
+                helpdesk_url = request.build_absolute_uri('/contact_form')
+                email_saved = []
+                for email in lista_saved:
+                    if send_email:
+                        for course_id in list_course:
+                            redirect_url = request.build_absolute_uri('/courses/{}/course'.format(course_id))
+                            if email['email_d'] != email['email_o']:
+                                enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, email['email_o'])
+                            else:
+                                enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, '')
+                    aux = email
+                    aux.pop('password', None)
+                    email_saved.append(aux)
+
+                context = {
+                    'datos': '',
+                    'auto_enroll': True,
+                    'send_email': True,
+                    'curso': '',
+                    'modo': 'honor',
+                    'action_send': send_email
+                }
+                if len(email_saved) > 0:
+                    context['lista_saved'] = email_saved
+                if len(lista_not_saved) > 0:
+                    context['lista_not_saved'] = lista_not_saved
                 return render(request, 'edxlogin/external.html', context)
-
-            lista_saved, lista_not_saved = self.enroll_create_user(
-                request, lista_data, enroll)
-            redirect_url = request.build_absolute_uri('/courses/{}/course'.format(course_id))
-            login_url = request.build_absolute_uri('/login')
-            helpdesk_url = request.build_absolute_uri('/contact_form')
-            email_saved = []
-            for email in lista_saved:
-                if send_email:
-                    if email['email_d'] != email['email_o']:
-                        enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, email['email_o'])
-                    else:
-                        enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, '')
-                aux = email
-                aux.pop('password', None)
-                email_saved.append(aux)
-                
-            context = {
-                'datos': '',
-                'auto_enroll': True,
-                'send_email': True,
-                'modo': 'honor',
-                'action_send': send_email
-            }
-            if len(email_saved) > 0:
-                context['lista_saved'] = email_saved
-            if len(lista_not_saved) > 0:
-                context['lista_not_saved'] = lista_not_saved
-            return render(request, 'edxlogin/external.html', context)
-
+            else:
+                logger.error("EdxLoginExternal - User dont have permission or is not staff, user: {}".format(request.user))
+                raise Http404()
         else:
-            logger.error("EdxLoginExternal - User is Anonymous or dont have next permission: uchile_instructor_staff, instructor, course_staff, staff.")
+            logger.error("EdxLoginExternal - User is Anonymous")
             raise Http404()
 
-    def validate_data_external(self, request, lista_data, context):
+    def validate_data_external(self, user, lista_data, context):
         """
             Validate Data
         """
         wrong_data = []
         # si no se ingreso datos
         if not lista_data:
-            logger.error("EdxLoginExternal - Empty Data, user: {}".format(request.user.id))
+            logger.error("EdxLoginExternal - Empty Data, user: {}".format(user.id))
             context['no_data'] = ''
         if len(lista_data) > 50:
-            logger.error("EdxLoginExternal - data limit is 50, length data: {} user: {}".format(len(lista_data),request.user.id))
+            logger.error("EdxLoginExternal - data limit is 50, length data: {} user: {}".format(len(lista_data),user.id))
             context['limit_data'] = ''
         else:
             for data in lista_data:
@@ -925,7 +946,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     data.append("")
                     data.append("")
                     wrong_data.append(data)
-                    logger.error("EdxLoginExternal - Wrong Data, only one or four++ parameters, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                    logger.error("EdxLoginExternal - Wrong Data, only one or four++ parameters, user: {}, wrong_data: {}".format(user.id, wrong_data))
                 else:
                     if len(data) == 2:
                         data.append("")
@@ -933,61 +954,76 @@ class EdxLoginExternal(View, Content, ContentStaff):
                         aux_name = unidecode.unidecode(data[0].lower())
                         aux_name = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_name)
                         if not re.match(regex_names, aux_name):
-                            logger.error("EdxLoginExternal - Wrong Name, not allowed specials characters, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+                            logger.error("EdxLoginExternal - Wrong Name, not allowed specials characters, user: {}, wrong_data: {}".format(user.id, wrong_data))
                             wrong_data.append(data)
                         elif not re.match(regex, data[1].lower()):
-                            logger.error("EdxLoginExternal - Wrong Email {}, user: {}, wrong_data: {}".format(data[1].lower(), request.user.id, wrong_data))
+                            logger.error("EdxLoginExternal - Wrong Email {}, user: {}, wrong_data: {}".format(data[1].lower(), user.id, wrong_data))
                             wrong_data.append(data)
-                        elif data[2] != "" and not self.validarRutAllType(request, data[2]):
-                            logger.error("EdxLoginExternal - Wrong Rut {}, user: {}, wrong_data: {}".format(data[2], request.user.id, wrong_data))
+                        elif data[2] != "" and not self.validarRutAllType(data[2]):
+                            logger.error("EdxLoginExternal - Wrong Rut {}, user: {}, wrong_data: {}".format(data[2], user.id, wrong_data))
                             wrong_data.append(data)
                     else:
                         wrong_data.append(data)
         if len(wrong_data) > 0:
-            logger.error("EdxLoginExternal - Wrong Data, user: {}, wrong_data: {}".format(request.user.id, wrong_data))
+            logger.error("EdxLoginExternal - Wrong Data, user: {}, wrong_data: {}".format(user.id, wrong_data))
             context['wrong_data'] = wrong_data
         # valida curso
-        if request.POST.get("course", "") == "":
-            logger.error("EdxLoginExternal - Empty course, user: {}".format(request.user.id))
+        if context['curso'] == "":
+            logger.error("EdxLoginExternal - Empty course, user: {}".format(user.id))
             context['curso2'] = ''
-        # valida si existe el curso
-        elif not self.validate_course(request.POST.get("course", "")):
-            logger.error("EdxLoginExternal - Couse dont exists, user: {}, course_id: {}".format(request.user.id, request.POST.get("course", "")))
-            context['error_curso'] = ''
 
+        # valida si existe el curso
+        else:
+            list_course = context['curso'].split('\n')
+            list_course = [course_id.strip() for course_id in list_course]
+            list_course = [course_id for course_id in list_course if course_id]
+            for course_id in list_course:
+                if not self.validate_course(course_id):
+                    if 'error_curso' not in context:
+                        context['error_curso'] = [course_id]
+                    else:
+                        context['error_curso'].append(course_id)
+                    logger.error("EdxLoginExternal - Course dont exists, user: {}, course_id: {}".format(user.id, course_id))
+            if 'error_curso' not in context:
+                for course_id in list_course:
+                    if not self.validate_user(user, course_id):
+                        if 'error_permission' not in context:
+                            context['error_permission'] = [course_id]
+                        else:
+                            context['error_permission'].append(course_id)
+                        logger.error("EdxLoginExternal - User dont have permission, user: {}, course_id: {}".format(user.id, course_id))
         # si el modo es incorrecto
-        if not request.POST.get(
-                "modes", None) in [
+        if not context['modo'] in [
                 x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:
             context['error_mode'] = ''
-            logger.error("EdxLoginExternal - Wrong Mode, user: {}, mode: {}".format(request.user.id, request.POST.get("modes", "")))
+            logger.error("EdxLoginExternal - Wrong Mode, user: {}, mode: {}".format(user.id, context['modo']))
         return context
     
-    def validarRutAllType(self, request, run):
+    def validarRutAllType(self, run):
         """
             Validate all Rut types
         """
         try:
             if run[0] == 'P':
                 if 5 > len(run[1:]) or len(run[1:]) > 20:
-                    logger.error("EdxLoginExternal - Rut Passport wrong, user: {}, rut".format(request.user.id, run))
+                    logger.error("EdxLoginExternal - Rut Passport wrong, rut".format(run))
                     return False
             elif run[0:2] == 'CG':
                 if len(run) != 10:
-                    logger.error("EdxLoginExternal - Rut CG wrong, user: {}, rut".format(request.user.id, run))
+                    logger.error("EdxLoginExternal - Rut CG wrong, rut".format(run))
                     return False
             else:
                 if not self.validarRut(run):
-                    logger.error("EdxLoginExternal - Rut wrong, user: {}, rut".format(request.user.id, run))
+                    logger.error("EdxLoginExternal - Rut wrong, rut".format(run))
                     return False
 
         except Exception:
-            logger.error("EdxLoginExternal - Rut wrong, user: {}, rut".format(request.user.id, run))
+            logger.error("EdxLoginExternal - Rut wrong, rut".format(run))
             return False
 
         return True
 
-    def enroll_create_user(self, request, lista_data, enroll):
+    def enroll_create_user(self, course_ids, mode, lista_data, enroll):
         """
             Create and enroll the user with/without UChile account
             if email or rut exists not saved them
@@ -1026,7 +1062,8 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     if edxlogin_user is None:
                         lista_not_saved.append([aux_email, dato[2]])
                     else:
-                        self.enroll_course(edxlogin_user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                        for course_id in course_ids:
+                            self.enroll_course(edxlogin_user, course_id, enroll, mode)
                         lista_saved.append({
                             'email_o': aux_email,
                             'email_d': edxlogin_user.user.email,
@@ -1048,8 +1085,8 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     else:
                         aux_user = True
                         user = User.objects.get(email=aux_email)
-                    
-                    self.enroll_course_user(user, request.POST.get("course", ""), enroll, request.POST.get("modes", None))
+                    for course_id in course_ids:
+                        self.enroll_course_user(user, course_id, enroll, mode)
                     lista_saved.append({
                         'email_o': aux_email,
                         'email_d': user.email,
