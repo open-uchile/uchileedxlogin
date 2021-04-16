@@ -1,7 +1,7 @@
 ## mako
 <html>
 Estimada(o) ${user_name},<br><br>
-Usted ha sido inscrito en el curso "${course_name}".<br>
+Usted ha sido inscrito en el(los) curso(s): "${courses_name}".<br>
 Para ingresar, debe dirigirse a <a href="${login_url}">${login_url}</a> y presionar el botón "Ingresa con tu cuenta eol". Los datos de tu cuenta son los siguientes:<br><br>
 
 Correo: ${user_email}<br><br>

@@ -1,8 +1,6 @@
 
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from django.conf import settings
-from lms.djangoapps.courseware.courses import get_course_by_id
-from opaque_keys.edx.keys import UsageKey, CourseKey
 
 from celery import task
 from django.core.mail import send_mail
@@ -20,19 +18,17 @@ EMAIL_MAX_RETRIES = 5
     queue='edx.lms.core.low',
     default_retry_delay=EMAIL_DEFAULT_RETRY_DELAY,
     max_retries=EMAIL_MAX_RETRIES)
-def enroll_email(user_pass, user_email, course_id, redirect_url, is_sso, exists, login_url, user_name, helpdesk_url, original_email):
+def enroll_email(user_pass, user_email, courses_name, is_sso, exists, login_url, user_name, helpdesk_url, original_email):
     """
         Send mail to specific user
     """
     platform_name = configuration_helpers.get_value(
             'PLATFORM_NAME', settings.PLATFORM_NAME)
-    course = get_course_by_id(CourseKey.from_string(course_id))
-    subject = 'Inscripción en el curso: {}'.format(course.display_name_with_default)
+    subject = 'Inscripción en el(los) curso(s): {}'.format(courses_name)
     context = {
-        "course_name": course.display_name_with_default,
+        "courses_name": courses_name,
         "platform_name": platform_name,
         "user_password": user_pass,
-        'redirect_url': redirect_url,
         'user_email': user_email,
         'login_url': login_url,
         'user_name': user_name,

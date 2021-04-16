@@ -895,14 +895,17 @@ class EdxLoginExternal(View, Content, ContentStaff):
                 login_url = request.build_absolute_uri('/login')
                 helpdesk_url = request.build_absolute_uri('/contact_form')
                 email_saved = []
+                courses = [get_course_by_id(CourseKey.from_string(course_id)) for course_id in list_course]
+                courses_name = ''
+                for course in courses:
+                    courses_name = courses_name + course.display_name_with_default + ', '
+                courses_name = courses_name[:-2]
                 for email in lista_saved:
                     if send_email:
-                        for course_id in list_course:
-                            redirect_url = request.build_absolute_uri('/courses/{}/course'.format(course_id))
-                            if email['email_d'] != email['email_o']:
-                                enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, email['email_o'])
-                            else:
-                                enroll_email.delay(email['password'], email['email_d'], course_id, redirect_url, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, '')
+                        if email['email_d'] != email['email_o']:
+                            enroll_email.delay(email['password'], email['email_d'], courses_name, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, email['email_o'])
+                        else:
+                            enroll_email.delay(email['password'], email['email_d'], courses_name, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, '')
                     aux = email
                     aux.pop('password', None)
                     email_saved.append(aux)
