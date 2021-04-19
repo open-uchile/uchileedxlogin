@@ -326,6 +326,10 @@ class ContentStaff(object):
             Verify if the data if valid
         """
         run_malos = ""
+        original_ruts = []
+        duplicate_ruts = []
+        original_courses = []
+        duplicate_courses = []
         # validacion de los run
         for run in lista_run:
             try:
@@ -338,7 +342,10 @@ class ContentStaff(object):
                 else:
                     if not self.validarRut(run):
                         run_malos += run + " - "
-
+                if run in original_ruts:
+                    duplicate_ruts.append(run)
+                else:
+                    original_ruts.append(run)
             except Exception:
                 run_malos += run + " - "
 
@@ -348,7 +355,8 @@ class ContentStaff(object):
         # si existe run malo
         if run_malos != "":
             context['run_malos'] = run_malos
-
+        if len(duplicate_ruts) > 0:
+            context['duplicate_ruts'] = duplicate_ruts
         # valida curso
         if context['curso'] == "":
             context['curso2'] = ''
@@ -358,6 +366,10 @@ class ContentStaff(object):
             list_course = [course_id.strip() for course_id in list_course]
             list_course = [course_id for course_id in list_course if course_id]
             for course_id in list_course:
+                if course_id in original_courses:
+                    duplicate_courses.append(course_id)
+                else:
+                    original_courses.append(course_id)
                 if not self.validate_course(course_id):
                     if 'error_curso' not in context:
                         context['error_curso'] = [course_id]
@@ -372,7 +384,8 @@ class ContentStaff(object):
                         else:
                             context['error_permission'].append(course_id)
                         logger.error("EdxLoginStaff - User dont have permission, user: {}, course_id: {}".format(user.id, course_id))
-
+        if len(duplicate_courses) > 0:
+            context['duplicate_courses'] = duplicate_courses
         # si no se ingreso run
         if not lista_run:
             context['no_run'] = ''
@@ -935,6 +948,10 @@ class EdxLoginExternal(View, Content, ContentStaff):
             Validate Data
         """
         wrong_data = []
+        duplicate_data = [[],[]]
+        original_data = [[],[]]
+        duplicate_courses = []
+        original_courses = []
         # si no se ingreso datos
         if not lista_data:
             logger.error("EdxLoginExternal - Empty Data, user: {}".format(user.id))
@@ -965,11 +982,26 @@ class EdxLoginExternal(View, Content, ContentStaff):
                         elif data[2] != "" and not self.validarRutAllType(data[2]):
                             logger.error("EdxLoginExternal - Wrong Rut {}, user: {}, wrong_data: {}".format(data[2], user.id, wrong_data))
                             wrong_data.append(data)
+                        elif data[1] in original_data[0] or (data[2] != '' and data[2] in original_data[1]):
+                            if data[1] in original_data[0]:
+                                duplicate_data[0].append(data[1])
+                            if data[2] != '' and data[2] in original_data[1]:
+                                duplicate_data[1].append(data[2])
+                        else:
+                            original_data[0].append(data[1])
+                            if data[2] != '':
+                                original_data[1].append(data[2])
                     else:
                         wrong_data.append(data)
         if len(wrong_data) > 0:
             logger.error("EdxLoginExternal - Wrong Data, user: {}, wrong_data: {}".format(user.id, wrong_data))
             context['wrong_data'] = wrong_data
+        if len(duplicate_data[0]) > 0:
+            logger.error("EdxLoginExternal - Duplicate Email, user: {}, duplicate_data: {}".format(user.id, duplicate_data[0]))
+            context['duplicate_email'] = duplicate_data[0]
+        if len(duplicate_data[1]) > 0:
+            logger.error("EdxLoginExternal - Duplicate Rut, user: {}, duplicate_data: {}".format(user.id, duplicate_data[1]))
+            context['duplicate_rut'] = duplicate_data[1]
         # valida curso
         if context['curso'] == "":
             logger.error("EdxLoginExternal - Empty course, user: {}".format(user.id))
@@ -981,6 +1013,10 @@ class EdxLoginExternal(View, Content, ContentStaff):
             list_course = [course_id.strip() for course_id in list_course]
             list_course = [course_id for course_id in list_course if course_id]
             for course_id in list_course:
+                if course_id in original_courses:
+                    duplicate_courses.append(course_id)
+                else:
+                    original_courses.append(course_id)
                 if not self.validate_course(course_id):
                     if 'error_curso' not in context:
                         context['error_curso'] = [course_id]
@@ -995,6 +1031,8 @@ class EdxLoginExternal(View, Content, ContentStaff):
                         else:
                             context['error_permission'].append(course_id)
                         logger.error("EdxLoginExternal - User dont have permission, user: {}, course_id: {}".format(user.id, course_id))
+        if len(duplicate_courses) > 0:
+            context['duplicate_courses'] = duplicate_courses
         # si el modo es incorrecto
         if not context['modo'] in [
                 x[0] for x in EdxLoginUserCourseRegistration.MODE_CHOICES]:

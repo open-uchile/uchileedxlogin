@@ -809,7 +809,7 @@ class TestStaffView(ModuleStoreTestCase):
         """
         post_data = {
             'action': "staff_enroll",
-            'runs': '10-8\n10-8\n10-8\n10-8\n10-8',
+            'runs': '10-8\n9045578-8\n7193711-9\n19961161-5\n24902414-7',
             'course': str(self.course.id),
             'modes': 'audit',
             'enroll': '1'
@@ -818,13 +818,13 @@ class TestStaffView(ModuleStoreTestCase):
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEqual(response.status_code, 200)
-
-        aux = EdxLoginUserCourseRegistration.objects.filter(run="0000000108")
-        for var in aux:
-            self.assertEqual(var.run, "0000000108")
-            self.assertEqual(var.mode, 'audit')
-            self.assertEqual(str(var.course), str(self.course.id))
-            self.assertEqual(var.auto_enroll, True)
+        runs = ['0000000108','0090455788','0071937119','0199611615','0249024147']
+        for run in runs:
+            aux = EdxLoginUserCourseRegistration.objects.get(run=run)
+            self.assertEqual(aux.run, run)
+            self.assertEqual(aux.mode, 'audit')
+            self.assertEqual(str(aux.course), str(self.course.id))
+            self.assertEqual(aux.auto_enroll, True)
 
         self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 5)
@@ -835,29 +835,29 @@ class TestStaffView(ModuleStoreTestCase):
         """
         post_data = {
             'action': "staff_enroll",
-            'runs': '10-8\n10-8\n10-8\n10-8\n10-8',
+            'runs': '10-8\n9045578-8\n7193711-9\n19961161-5\n24902414-7',
             'course': '{}\n{}'.format(str(self.course.id),str(self.course2.id)),
             'modes': 'audit',
             'enroll': '1'
         }
-
+        runs = ['0000000108','0090455788','0071937119','0199611615','0249024147']
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEqual(response.status_code, 200)
 
-        aux = EdxLoginUserCourseRegistration.objects.filter(run="0000000108", course=self.course.id)
-        for var in aux:
-            self.assertEqual(var.run, "0000000108")
-            self.assertEqual(var.mode, 'audit')
-            self.assertEqual(str(var.course), str(self.course.id))
-            self.assertEqual(var.auto_enroll, True)
+        for run in runs:
+            aux = EdxLoginUserCourseRegistration.objects.get(run=run, course=self.course.id)
+            self.assertEqual(aux.run, run)
+            self.assertEqual(aux.mode, 'audit')
+            self.assertEqual(str(aux.course), str(self.course.id))
+            self.assertEqual(aux.auto_enroll, True)
 
-        aux = EdxLoginUserCourseRegistration.objects.filter(run="0000000108", course=self.course2.id)
-        for var in aux:
-            self.assertEqual(var.run, "0000000108")
-            self.assertEqual(var.mode, 'audit')
-            self.assertEqual(str(var.course), str(self.course2.id))
-            self.assertEqual(var.auto_enroll, True)
+        for run in runs:
+            aux = EdxLoginUserCourseRegistration.objects.get(run=run, course=self.course2.id)
+            self.assertEqual(aux.run, run)
+            self.assertEqual(aux.mode, 'audit')
+            self.assertEqual(str(aux.course), str(self.course2.id))
+            self.assertEqual(aux.auto_enroll, True)
 
         self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 10)
@@ -897,6 +897,44 @@ class TestStaffView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEqual(response.status_code, 200)
         self.assertTrue("id=\"error_curso\"" in response._container[0].decode())
+        self.assertEqual(
+            EdxLoginUserCourseRegistration.objects.all().count(), 0)
+
+    def test_staff_post_duplicate_multiple_courses(self):
+        """
+            Test staff view post when course is duplicated in form
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': 'course-v1:tet+MSS001+2009_2\ncourse-v1:tet+MSS001+2009_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"duplicate_courses\"" in response._container[0].decode())
+        self.assertEqual(
+            EdxLoginUserCourseRegistration.objects.all().count(), 0)
+
+    def test_staff_post_duplicate_multiple_ruts(self):
+        """
+            Test staff view post when ruts is duplicated in form
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8\n10-8\n10-8\n10-8\n10-8',
+            'course': 'course-v1:tet+MSS001+2009_2',
+            'modes': 'audit',
+            'enroll': '1'
+        }
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("id=\"duplicate_ruts\"" in response._container[0].decode())
         self.assertEqual(
             EdxLoginUserCourseRegistration.objects.all().count(), 0)
 
@@ -2155,6 +2193,51 @@ class TestExternalView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:external'), post_data)
         self.assertEqual(response.status_code, 200)
         self.assertTrue('id="wrong_data"' in response._container[0].decode())
+
+    def test_external_post_duplicate_multiple_run(self):
+        """
+            Test external view post with wrong run
+        """
+        post_data = {
+            'datos': 'asdda sadsa, asd@asad.cl, 10-8\nasadsdda sadssda, asdq@aswad.cl, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="duplicate_rut"' in response._container[0].decode())
+
+    def test_external_post_duplicate_multiple_email(self):
+        """
+            Test external view post with wrong run
+        """
+        post_data = {
+            'datos': 'asdda sadsa, asd@asad.cl, 10-8\nasadsdda sadssda, asd@asad.cl, 9045578-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="duplicate_email"' in response._container[0].decode())
+
+    def test_external_post_duplicate_multiple_course(self):
+        """
+            Test external view post with wrong run
+        """
+        post_data = {
+            'datos': 'asdda sadsa, asd@asad.cl, 10-9',
+            'course': '{}\n{}'.format(self.course.id, self.course.id),
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="duplicate_courses"' in response._container[0].decode())
 
     def test_external_post_wrong_email(self):
         """

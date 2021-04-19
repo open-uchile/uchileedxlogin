@@ -83,6 +83,18 @@ validate_error = function(data) {
       aux_error = aux_error + course_id + "</br>";
     });
   }
+  if ("duplicate_ruts" in data){
+    aux_error = aux_error + "Estos ruts están duplicados en el formulario:</br>";
+    data.duplicate_ruts.forEach(rut => {
+      aux_error = aux_error + rut + "</br>";
+    });
+  }
+  if ("duplicate_courses" in data){
+    aux_error = aux_error + "Estos cursos están duplicados en el formulario:</br>";
+    data.duplicate_courses.forEach(course_id => {
+      aux_error = aux_error + course_id + "</br>";
+    });
+  }
   if ("error_mode" in data){
     aux_error = aux_error + "El rol del usuario esta incorrecto, actualice la página</br>";
   }

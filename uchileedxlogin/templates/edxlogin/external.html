@@ -110,6 +110,22 @@ p {
                     %endfor
                 </p>
             % endif
+            % if context.get('duplicate_email', UNDEFINED) is not UNDEFINED:
+                <p id="duplicate_email" style="color:firebrick; margin-bottom: 15px;">
+                    <b>Estos correos están duplicados en el formulario: </b></br>
+                    %for data in duplicate_email:
+                        ${data}</br>
+                    %endfor
+                </p>
+            % endif
+            % if context.get('duplicate_rut', UNDEFINED) is not UNDEFINED:
+                <p id="duplicate_rut" style="color:firebrick; margin-bottom: 15px;">
+                    <b>Estos ruts están duplicados en el formulario: </b></br>
+                    %for data in duplicate_rut:
+                        ${data}</br>
+                    %endfor
+                </p>
+            % endif
             % if context.get('no_data', UNDEFINED) is not UNDEFINED:
                 <p id="no_data" style="color:firebrick; margin-bottom: 15px;">Falta agregar datos.</p>
             % endif
@@ -125,6 +141,14 @@ p {
                         ${curso_id}
                         </br>
                     %endfor</p>
+            % endif
+            % if context.get('duplicate_courses', UNDEFINED) is not UNDEFINED:
+                <p id="duplicate_courses" style="color:firebrick; margin-bottom: 15px;">
+                    <b>Estos cursos están duplicados en el formulario: </b></br>
+                    %for data in duplicate_courses:
+                        ${data}</br>
+                    %endfor
+                </p>
             % endif
             % if context.get('error_permission', UNDEFINED) is not UNDEFINED:
                 <p id="error_permission" style="color:firebrick; margin-bottom: 15px;"><b>Usuario no tiene permiso suficientes en los siguientes cursos:</b></br>

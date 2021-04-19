@@ -105,6 +105,22 @@
             % if context.get('run_malos', UNDEFINED) is not UNDEFINED:
                 <p id="run_malos" style="color:firebrick; margin-bottom: 15px;">Estos Runs están incorrectos: ${run_malos}.</p>
             % endif
+            % if context.get('duplicate_ruts', UNDEFINED) is not UNDEFINED:
+                <p id="duplicate_ruts" style="color:firebrick; margin-bottom: 15px;">
+                    <b>Estos ruts están duplicados en el formulario: </b></br>
+                    %for data in duplicate_ruts:
+                        ${data}</br>
+                    %endfor
+                </p>
+            % endif
+            % if context.get('duplicate_courses', UNDEFINED) is not UNDEFINED:
+                <p id="duplicate_courses" style="color:firebrick; margin-bottom: 15px;">
+                    <b>Estos cursos están duplicados en el formulario: </b></br>
+                    %for data in duplicate_courses:
+                        ${data}</br>
+                    %endfor
+                </p>
+            % endif
             % if context.get('no_run', UNDEFINED) is not UNDEFINED:
                 <p id="no_run" style="color:firebrick; margin-bottom: 15px;">Falta agregar run.</p>
             % endif            
