@@ -156,7 +156,9 @@ class Content(object):
         from openedx.core.djangoapps.user_authn.views.registration_form import AccountCreationForm
         from common.djangoapps.student.helpers import do_create_account
         # Check and remove email if its already registered
-        user_pass = "invalid" if 'pass' not in user_data else user_data['pass']  # Temporary password
+        aux_pass = BaseUserManager().make_random_password(12)
+        aux_pass = aux_pass.lower()
+        user_pass = aux_pass if 'pass' not in user_data else user_data['pass']  # Temporary password
         if user_data['email'] == 'null':
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
         form = AccountCreationForm(
@@ -174,11 +176,6 @@ class Content(object):
         reg.save()
         #from common.djangoapps.student.models import create_comments_service_user
         #create_comments_service_user(user)
-
-        if 'pass' not in user_data:
-            # Invalidate the user password, as it will be never be used
-            user.set_unusable_password()
-            user.save()
 
         return user
 
