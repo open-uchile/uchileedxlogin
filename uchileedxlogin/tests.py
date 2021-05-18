@@ -575,6 +575,18 @@ class TestCallbackView(ModuleStoreTestCase):
             EdxLoginCallback().generate_username(user_data),
             "Name_Last")
 
+    def test_whitespace_lastname(self):
+        """
+            Test callback generate username when lastname has too much whitespace
+        """
+        user_data = {
+            "nombres": "Name",
+            "apellidoPaterno": "          Last    Last2      ",
+            "apellidoMaterno": '    Last2      '}
+        self.assertEqual(
+            EdxLoginCallback().generate_username(user_data),
+            "Name_Last")
+
     def test_long_name_middle(self):
         """
             Test callback generate username when long name middle
