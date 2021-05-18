@@ -215,8 +215,8 @@ class Content(object):
             aux_first_name = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_first_name)
             aux_first_name = aux_first_name.split(" ")
 
-        first_name = aux_first_name
-        last_name = aux_last_name
+        first_name = [x for x in aux_first_name if x != ''] or ['']
+        last_name = [x for x in aux_last_name if x != ''] or ['']
 
         # 1.
         test_name = first_name[0] + "_" + last_name[0]
