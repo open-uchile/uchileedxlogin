@@ -1,10 +1,12 @@
 # Uchile Edx Login
-![https://github.com/eol-uchile/uchileedxlogin/actions](https://github.com/eol-uchile/uchileedxlogin/workflows/Python%20application/badge.svg)
+![https://github.com/eol-uchile/uchileedxlogin/actions](https://github.com/eol-uchile/uchileedxlogin/workflows/Python%20application/badge.svg) ![Coverage Status](https://github.com/eol-uchile/uchileedxlogin/blob/master/coverage-badge.svg)
 
 # Install App
 
     docker-compose exec lms pip install -e /openedx/requirements/uchileedxlogin
     docker-compose exec cms pip install -e /openedx/requirements/uchileedxlogin
+    docker-compose exec lms python manage.py lms --settings=prod.production makemigrations
+    docker-compose exec lms python manage.py lms --settings=prod.production migrate
 
 # Install Theme
 

@@ -63,7 +63,7 @@ class TestCallbackView(ModuleStoreTestCase):
         super(TestCallbackView, self).setUp()
         self.client = Client()
         result = self.client.get(reverse('uchileedxlogin-login:login'))
-        with patch('student.models.cc.User.save'):
+        with patch('common.djangoapps.student.models.cc.User.save'):
             user = UserFactory(
                 username='testuser3',
                 password='12345',
@@ -680,7 +680,7 @@ class TestStaffView(ModuleStoreTestCase):
             display_name='2021',
             emit_signals=True)
         aux = CourseOverview.get_from_id(self.course3.id)
-        with patch('student.models.cc.User.save'):
+        with patch('common.djangoapps.student.models.cc.User.save'):
             content_type = ContentType.objects.get_for_model(EdxLoginUser)
             permission = Permission.objects.get(
                 codename='uchile_instructor_staff',
@@ -1751,7 +1751,7 @@ class TestExternalView(ModuleStoreTestCase):
             display_name='2021',
             emit_signals=True)
         aux = CourseOverview.get_from_id(self.course3.id)
-        with patch('student.models.cc.User.save'):
+        with patch('common.djangoapps.student.models.cc.User.save'):
             content_type = ContentType.objects.get_for_model(EdxLoginUser)
             permission = Permission.objects.get(
                 codename='uchile_instructor_staff',
