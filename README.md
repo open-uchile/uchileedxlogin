@@ -1,5 +1,5 @@
 # Uchile Edx Login
-![https://github.com/eol-uchile/uchileedxlogin/actions](https://github.com/eol-uchile/uchileedxlogin/workflows/Python%20application/badge.svg)
+![https://github.com/eol-uchile/uchileedxlogin/actions](https://github.com/eol-uchile/uchileedxlogin/workflows/Python%20application/badge.svg) ![Coverage Status](https://github.com/eol-uchile/uchileedxlogin/blob/master/coverage-badge.svg)
 
 # Install App
 
