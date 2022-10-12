@@ -19,7 +19,7 @@ Dear ${user_name},<br><br>
 You have been enrolled in the course(s): "${courses_name}".<br>
 To enter, please go to <a href="${login_url}">${login_url}</a>, select "Ingresa con tu cuenta mi.uchile", and enter your UChile account information.<br><br>  
 
-If you have problems with your password, please go to <a href="https://cuenta.uchile.cl/solicitar-recuperar-cuenta">https://cuenta.uchile.cl/solicitar-recuperar-cuenta</a>, and enter your RUT or Passport number, and an email will be sent to you with the information to recover your password.<br><br>  
+If you have problems with your password, please go to <a href="https://cuenta.uchile.cl/solicitar-recuperar-cuenta">https://cuenta.uchile.cl/solicitar-recuperar-cuenta</a>, enter your RUT or Passport number, and an email will be sent to you with the information to recover your password.<br><br>  
 
 If you have any questions, please contact us at <a href="${helpdesk_url}">Help Desk</a>.<br><br>
 

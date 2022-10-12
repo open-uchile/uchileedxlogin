@@ -19,9 +19,9 @@ Este es un correo automático, por favor no responder.
 <br><br>
 Dear ${user_name},<br><br>
 You have been enrolled in the course(s): "${courses_name}".<br>
-To enter, please go to <a href="${login_url}">${login_url}</a>, select the option "Ingresa con tu cuenta eol" and log in with your:<br><br>
+To enter, please go to <a href="${login_url}">${login_url}</a>, select the option "Ingresa con tu cuenta eol" and log in with your account:<br><br>
 
-User Email (Correo): ${user_email}<br><br>
+User Email: ${user_email}<br><br>
 
 If you have problems loggin in, you can go to <a href="${login_url}">${login_url}</a>, select "Ingresa con tu cuenta eol" and click on "Need help signing in?". There you should enter your email address "${user_email}", and an email will be sent to you with the information to recover your password.<br><br>
 

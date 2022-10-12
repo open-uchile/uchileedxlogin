@@ -22,8 +22,8 @@ Dear ${user_name},<br><br>
 You have been enrolled in the course(s): "${courses_name}".<br>
 To enter, please go to <a href="${login_url}">${login_url}</a> and select the option "Ingresa con tu cuenta eol". Your account information is as follows:<br><br>
 
-User Email (Correo): ${user_email}<br>
-Password (Contraseña): ${user_password}<br><br>
+User Email: ${user_email}<br>
+Password: ${user_password}<br><br>
 
 If you have problems loggin in, you can go to <a href="${login_url}">${login_url}</a>, select "Ingresa con tu cuenta eol" and click on "Need help signing in?". There you should enter your email address "${user_email}", and an email will be sent to you with the information to recover your password.<br><br>
 
