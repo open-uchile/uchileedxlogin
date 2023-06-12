@@ -69,7 +69,6 @@ p {
     <div style="text-align: center">
         <form method="POST">
            <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_token}"/>
-           <% diff_email = False %>
             % if context.get('action_send', False) is True and context.get('lista_saved', UNDEFINED) is not UNDEFINED:
                 <p id="action_send" style="color:rgb(56, 181, 197); margin-bottom: 15px;">
                     <b>Correos Enviados Correctamente.</b>
@@ -79,15 +78,10 @@ p {
                 <p id="lista_saved" style="color:rgb(56, 181, 197); margin-bottom: 15px;">
                     <b>Usuarios Creados y/o Inscritos:</b></br>
                     %for run in lista_saved:
-                        % if run['rut'] == run['rut_aux'] and run['rut'] != "":
-                            El rut '${run['rut']}' ya existe, correo asociado/inscrito '${run['email_d']}', ${run['rut']}
+                        % if 'email2' in run:
+                            El correo asociado/inscrito del '${run['rut']}' es ${run['email2']}
                         % else:
-                            % if run['email_o'] == run['email_d']:
-                                ${run['email_o']}, ${run['rut']}
-                            % else:
-                                <% diff_email = True %>
-                                El correo '${run['email_o']}' ya existe, correo inscrito '${run['email_d']}', ${run['rut']}*
-                            % endif
+                            ${run['rut']}, ${run['email']}
                         % endif
                         </br>
                     %endfor
@@ -199,10 +193,5 @@ p {
             </div>
             <input type="submit" onClick="this.form.submit(); this.disabled=true; this.value='Enviando…'; " style="text-shadow: none; border-color:white; background-color: #0075b4; background-image: none; display:block; margin: auto" value="Enviar">
         </form>
-        % if diff_email:
-            <small id="diff_email" class="text-muted" style="line-height: 54px;">
-                * Estos correos son obtenidos a traves del rut asociado a la cuenta UChile
-            </small>
-        % endif
     </div>
 </main>

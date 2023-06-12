@@ -31,7 +31,7 @@ import unicodecsv as csv
 import re
 from django.contrib.auth.base_user import BaseUserManager
 logger = logging.getLogger(__name__)
-regex = r'^(([^<>()\[\]\.,;:\s@\"]+(\.[^<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^<>()[\]\.,;:\s@\"]+\.)+[^<>()[\]\.,;:\s@\"]{2,})$'
+regex = r'^(([^ñáéíóú<>()\[\]\.,;:\s@\"]+(\.[^ñáéíóú<>()\[\]\.,;:\s@\"]+)*)|(\".+\"))@(([^ñáéíóú<>()[\]\.,;:\s@\"]+\.)+[^ñáéíóú<>()[\]\.,;:\s@\"]{2,})$'
 regex_names = r'^[A-Za-z\s\_]+$'
 
 
@@ -67,24 +67,141 @@ class Content(object):
         """
         Get the user data
         """
-        parameters = {
-            'username': username
+        headers = {
+            'AppKey': settings.EDXLOGIN_KEY,
+            'Origin': settings.LMS_ROOT_URL
         }
-        result = requests.get(
-            settings.EDXLOGIN_USER_INFO_URL,
-            params=urlencode(parameters),
-            headers={
-                'content-type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'curl/7.58.0'})
+        params = (('usuario', '"{}"'.format(username)),)
+        base_url = settings.EDXLOGIN_USER_INFO_URL
+        result = requests.get(base_url, headers=headers, params=params)
+
         if result.status_code != 200:
             logger.error(
-                "{} {}".format(
-                    result.request,
-                    result.request.headers))
+                "Api Error: {}, body: {}, username: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    username))
             raise Exception(
-                "Wrong username {} {}".format(
+                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
                     result.status_code, username))
-        return json.loads(result.text)
+
+        data = json.loads(result.text)
+        if data["data"]["getRowsPersona"] is None:
+            logger.error(
+                "Doesnt exists rut in PH API, status_code: {}, body: {}, username: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    username))
+            raise Exception(
+                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
+                    result.status_code, username))
+        if data['data']['getRowsPersona']['status_code'] != 200:
+            logger.error(
+                "Api Error: {}, body: {}, username: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    username))
+            raise Exception(
+                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
+                    result.status_code, username))
+        if len(data["data"]["getRowsPersona"]["persona"]) == 0:
+            logger.error(
+                "Doesnt exists rut in PH API, status_code: {}, body: {}, username: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    username))
+            raise Exception(
+                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
+                    result.status_code, username))
+        if len(data["data"]["getRowsPersona"]["persona"][0]['pasaporte']) == 0:
+            logger.error(
+                "Doesnt exists rut in PH API, status_code: {}, body: {}, rut: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    rut))
+            raise Exception(
+                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                    result.status_code, rut))
+        getRowsPersona = data["data"]["getRowsPersona"]['persona'][0]
+        user_data = {
+            'rut': getRowsPersona['indiv_id'],
+            'username': username,
+            'nombres': getRowsPersona['nombres'],
+            'apellidoPaterno': getRowsPersona['paterno'],
+            'apellidoMaterno': getRowsPersona['materno'],
+            'emails': [email["email"] for email in getRowsPersona["email"]] #to do: check if email list have principal email
+        }
+        return user_data
+
+    def get_user_data_by_rut(self, rut):
+        """
+        Get the user data by rut
+        """
+        headers = {
+            'AppKey': settings.EDXLOGIN_KEY,
+            'Origin': settings.LMS_ROOT_URL
+        }
+        params = (('indiv_id', '"{}"'.format(rut)),)
+        base_url = settings.EDXLOGIN_USER_INFO_URL
+        result = requests.get(base_url, headers=headers, params=params)
+
+        if result.status_code != 200:
+            logger.error(
+                "Api Error: {}, body: {}, rut: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    rut))
+            raise Exception(
+                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                    result.status_code, rut))
+
+        data = json.loads(result.text)
+        if data["data"]["getRowsPersona"] is None:
+            logger.error(
+                "Doesnt exists rut in PH API, status_code: {}, body: {}, rut: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    rut))
+            raise Exception(
+                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                    result.status_code, rut))
+        if data['data']['getRowsPersona']['status_code'] != 200:
+            logger.error(
+                "Api Error: {}, body: {}, rut: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    rut))
+            raise Exception(
+                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                    result.status_code, rut))
+        if len(data["data"]["getRowsPersona"]["persona"]) == 0:
+            logger.error(
+                "Doesnt exists rut in PH API, status_code {}, body: {}, rut: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    rut))
+            raise Exception(
+                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                    result.status_code, rut))
+        if len(data["data"]["getRowsPersona"]["persona"][0]['pasaporte']) == 0:
+            logger.error(
+                "Doesnt exists rut in PH API, status_code: {}, body: {}, rut: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    rut))
+            raise Exception(
+                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                    result.status_code, rut))
+        getRowsPersona = data["data"]["getRowsPersona"]['persona'][0]
+        user_data = {
+            'rut': getRowsPersona['indiv_id'],
+            'username': getRowsPersona['pasaporte'][0]['usuario'],
+            'nombres': getRowsPersona['nombres'],
+            'apellidoPaterno': getRowsPersona['paterno'],
+            'apellidoMaterno': getRowsPersona['materno'],
+            'emails': [email["email"] for email in getRowsPersona["email"]] #to do: check if email list have principal email
+        }
+        return user_data
 
     def get_user_email(self, rut):
         """
@@ -133,15 +250,19 @@ class Content(object):
     def get_or_create_user(self, user_data):
         """
         Get or create the user given the user data.
-        If the user exists, update the email address in case the users has updated it.
         """
         try:
             clave_user = EdxLoginUser.objects.get(run=user_data['rut'])
             return clave_user
         except EdxLoginUser.DoesNotExist:
             with transaction.atomic():
-                user_data['email'] = self.get_user_email(user_data['rut'])
-                user = self.create_user_by_data(user_data)
+                user_data['email'] = user_data['emails'][0] #to do: check if email list have principal email
+                try:
+                    user = User.objects.get(email=user_data['email'])
+                    if EdxLoginUser.objects.filter(user=user).exists():
+                        return None
+                except User.DoesNotExist:
+                    user = self.create_user_by_data(user_data)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
                     have_sso=True,
@@ -155,7 +276,9 @@ class Content(object):
         """
         from openedx.core.djangoapps.user_authn.views.registration_form import AccountCreationForm
         from common.djangoapps.student.helpers import do_create_account
-        # Check and remove email if its already registered
+        username = self.generate_username(user_data)
+        if 'nombreCompleto' not in user_data:
+            user_data['nombreCompleto'] = '{} {} {}'.format(user_data['nombres'], user_data['apellidoPaterno'], user_data['apellidoMaterno'])
         aux_pass = BaseUserManager().make_random_password(12)
         aux_pass = aux_pass.lower()
         user_pass = aux_pass if 'pass' not in user_data else user_data['pass']  # Temporary password
@@ -163,7 +286,7 @@ class Content(object):
             user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
         form = AccountCreationForm(
             data={
-                "username": self.generate_username(user_data),
+                "username": username,
                 "email": user_data['email'],
                 "password": user_pass,
                 "name": user_data['nombreCompleto'],
@@ -189,7 +312,7 @@ class Content(object):
         4. return first_name[0] + "_" first_name[1..N][0..N] + "_" + last_name[1..N][0..N]
         5. return first_name[0] + "_" + last_name[0] + N
         """
-        if 'apellidoPaterno' not in user_data or 'apellidoMaterno' not in user_data or 'nombres' not in user_data:
+        if 'nombreCompleto' in user_data:
             aux_username = unidecode.unidecode(user_data['nombreCompleto'].lower())
             aux_username = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_username)
             aux_username = aux_username.split(" ")
@@ -550,7 +673,9 @@ class EdxLoginCallback(View, Content):
                 '{}?next={}'.format(
                     error_url, redirect_url))
         try:
-            self.login_user(request, username)
+            is_logged = self.login_user(request, username)
+            if not is_logged:
+                return HttpResponseRedirect('{}?next={}'.format(error_url, redirect_url))
         except Exception:
             logger.exception("Error logging " + username + " - " + ticket)
             return HttpResponseRedirect(
@@ -588,8 +713,10 @@ class EdxLoginCallback(View, Content):
         Get or create the user and log him in.
         """
         user_data = self.get_user_data(username)
-        user_data['username'] = username
         edxlogin_user = self.get_or_create_user(user_data)
+        if edxlogin_user is None:
+            logger.error("EdxLoginCallback - Error to get or create user, email: {}, rut: {}".format(user_data['email'], user_data['rut']))
+            return False
         if not edxlogin_user.have_sso:
             edxlogin_user.have_sso = True
             edxlogin_user.save()
@@ -601,6 +728,7 @@ class EdxLoginCallback(View, Content):
                 edxlogin_user.user,
                 backend="django.contrib.auth.backends.AllowAllUsersModelBackend",
             )
+        return True
 
     def enroll_pending_courses(self, edxlogin_user):
         """
@@ -814,12 +942,11 @@ class EdxLoginStaff(View, Content, ContentStaff):
             Get user data and create the user
         """
         try:
-            username = self.get_username(run)
-            user_data = self.get_user_data(username)
-            user_data['username'] = username
+            user_data = self.get_user_data_by_rut(run)
             edxlogin_user = self.get_or_create_user(user_data)
             return edxlogin_user
-        except Exception:
+        except Exception as e:
+            logger.error('EdxLoginStaff - Error in force_create_user(), rut: {}, error: {}'.format(run, str(e)))
             return None
 
 
@@ -829,7 +956,6 @@ class EdxLoginExport(View):
     """
 
     def get(self, request):
-        data = []
         users_edxlogin = EdxLoginUser.objects.all().order_by(
             'user__username').values('run', 'user__username', 'user__email')
 
@@ -841,16 +967,10 @@ class EdxLoginExport(View):
             delimiter=';',
             dialect='excel',
             encoding='utf-8')
-        data.append([])
-        data[0].extend(['Run', 'Username', 'Email'])
-        i = 1
-        for user in users_edxlogin:
-            data.append([])
-            data[i].extend(
-                [user['run'], user['user__username'], user['user__email']])
-            i += 1
-        writer.writerows(data)
-
+        
+        writer.writerows(['Run', 'Username', 'Email'])
+        for user in list(users_edxlogin):
+            writer.writerow([user['run'], user['user__username'], user['user__email']])
         return response
 
 class EdxLoginExternal(View, Content, ContentStaff):
@@ -871,7 +991,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
     def post(self, request):
         if not request.user.is_anonymous:
             if request.user.has_perm('uchileedxlogin.uchile_instructor_staff') or request.user.is_staff:
-                lista_data = request.POST.get("datos", "").split('\n')
+                lista_data = request.POST.get("datos", "").lower().split('\n')
                 # limpieza de los datos ingresados
                 lista_data = [run.strip() for run in lista_data]
                 lista_data = [run for run in lista_data if run]
@@ -912,10 +1032,10 @@ class EdxLoginExternal(View, Content, ContentStaff):
                 courses_name = courses_name[:-2]
                 for email in lista_saved:
                     if send_email:
-                        if email['email_d'] != email['email_o']:
-                            enroll_email.delay(email['password'], email['email_d'], courses_name, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, email['email_o'])
+                        if 'email2' in email:
+                            enroll_email.delay(email['password'], email['email'], courses_name, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, email['email2'])
                         else:
-                            enroll_email.delay(email['password'], email['email_d'], courses_name, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, '')
+                            enroll_email.delay(email['password'], email['email'], courses_name, email['sso'], email['exists'], login_url, email['nombreCompleto'], helpdesk_url, '')
                     aux = email
                     aux.pop('password', None)
                     email_saved.append(aux)
@@ -968,13 +1088,13 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     if len(data) == 2:
                         data.append("")
                     if data[0] != "" and data[1] != "":
-                        aux_name = unidecode.unidecode(data[0].lower())
+                        aux_name = unidecode.unidecode(data[0])
                         aux_name = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_name)
                         if not re.match(regex_names, aux_name):
                             logger.error("EdxLoginExternal - Wrong Name, not allowed specials characters, user: {}, wrong_data: {}".format(user.id, wrong_data))
                             wrong_data.append(data)
-                        elif not re.match(regex, data[1].lower()):
-                            logger.error("EdxLoginExternal - Wrong Email {}, user: {}, wrong_data: {}".format(data[1].lower(), user.id, wrong_data))
+                        elif not re.match(regex, data[1]):
+                            logger.error("EdxLoginExternal - Wrong Email {}, user: {}, wrong_data: {}".format(data[1], user.id, wrong_data))
                             wrong_data.append(data)
                         elif data[2] != "" and not self.validarRutAllType(data[2]):
                             logger.error("EdxLoginExternal - Wrong Rut {}, user: {}, wrong_data: {}".format(data[2], user.id, wrong_data))
@@ -1072,7 +1192,6 @@ class EdxLoginExternal(View, Content, ContentStaff):
         with transaction.atomic():
             for dato in lista_data:
                 dato = [d.strip() for d in dato]
-                dato[1] = dato[1].lower()
                 if len(dato) == 3:
                     dato[2] = dato[2].upper()
                     dato[2] = dato[2].replace("-", "")
@@ -1082,99 +1201,148 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     dato.append("")
                 while len(dato[2]) > 0 and len(dato[2]) < 10 and 'P' != dato[2][0] and 'CG' != dato[2][0:2]:
                     dato[2] = "0" + dato[2]
-                aux_email = dato[1]
                 aux_pass = BaseUserManager().make_random_password(12)
                 aux_pass = aux_pass.lower()
                 aux_user = False
-                if User.objects.filter(email=dato[1]).exists():
-                    dato[1] = 'null'
                 if dato[2] != "":
-                    aux_rut = ''
+                    aux_email = ''
                     if EdxLoginUser.objects.filter(run=dato[2]).exists():
-                        aux_rut = dato[2]
                         edxlogin_user = EdxLoginUser.objects.get(run=dato[2])
+                        aux_user = True
                         if not edxlogin_user.have_sso:
-                            aux_user = True
+                            if edxlogin_user.user.email != dato[1]:
+                                aux_email = edxlogin_user.user.email
                     else:
-                        edxlogin_user = self.create_user_with_run(dato, aux_pass)
+                        edxlogin_user, created = self.get_or_create_user_with_run(dato, aux_pass)
+                        if not created and edxlogin_user is not None:
+                            aux_user = True
                     if edxlogin_user is None:
-                        lista_not_saved.append([aux_email, dato[2]])
+                        lista_not_saved.append([dato[1], dato[2]])
                     else:
                         for course_id in course_ids:
                             self.enroll_course(edxlogin_user, course_id, enroll, mode)
-                        lista_saved.append({
-                            'email_o': aux_email,
-                            'email_d': edxlogin_user.user.email,
+                        aux_append = {
+                            'email': dato[1],
                             'nombreCompleto': edxlogin_user.user.profile.name.strip(),
                             'rut': dato[2],
-                            'rut_aux': aux_rut,
                             'password': aux_pass,
                             'sso': edxlogin_user.have_sso,
                             'exists': aux_user
-                        })
+                        }
+                        if aux_email != '':
+                            aux_append['email2'] = aux_email
+                        lista_saved.append(aux_append)
                 else:
-                    if dato[1] != 'null':
+                    rut = ''
+                    have_sso = False
+                    try:
+                        user = User.objects.get(email=dato[1])
+                        aux_user = True
+                        if EdxLoginUser.objects.filter(user=user).exists():
+                            aux_edxlogin = EdxLoginUser.objects.get(user=user)
+                            have_sso = aux_edxlogin.have_sso
+                            rut = aux_edxlogin.run
+                    except User.DoesNotExist:
                         user_data = {
                             'email':dato[1],
                             'nombreCompleto':dato[0],
                             'pass': aux_pass
                         }
                         user = self.create_user_by_data(user_data)
-                    else:
-                        aux_user = True
-                        user = User.objects.get(email=aux_email)
                     for course_id in course_ids:
                         self.enroll_course_user(user, course_id, enroll, mode)
                     lista_saved.append({
-                        'email_o': aux_email,
-                        'email_d': user.email,
+                        'email': dato[1],
                         'nombreCompleto': user.profile.name.strip(),
-                        'rut': '',
-                        'rut_aux': '',
+                        'rut': rut,
                         'password': aux_pass,
-                        'sso': False,
+                        'sso': have_sso,
                         'exists': aux_user
                     })
         return lista_saved, lista_not_saved
 
-    def create_user_with_run(self, dato, aux_pass):
+    def get_or_create_user_with_run(self, dato, aux_pass):
         """
             Get user data and create the user
         """
-
-        try:
-            username = self.get_username(dato[2])
-            user_data = self.get_user_data(username)
-            user_data['username'] = username
-            user_data['pass'] = aux_pass
-            edxlogin_user = self.create_user_external(user_data, dato)
-            return edxlogin_user
-        except Exception:
+        created = False
+        if User.objects.filter(email=dato[1]).exists():
+            user = User.objects.get(email=dato[1])
+            if EdxLoginUser.objects.filter(user=user).exists():
+                return None, created
+            else:
+                check_sso = self.check_rut_have_sso(dato[2])
+                edxlogin_user = EdxLoginUser.objects.create(
+                    user=user,
+                    have_sso=check_sso,
+                    run=dato[2]
+                )
+        else:
+            user_data = {
+                    'email': dato[1],
+                    'nombreCompleto': dato[0],
+                    'pass': aux_pass
+                }
+            try:
+                check_sso = self.check_rut_have_sso(dato[2])
+            except Exception:
+                check_sso = False
             with transaction.atomic():
-                if dato[1] == 'null':
-                    return None
                 user_data = {
                     'email': dato[1],
-                    'nombreCompleto':dato[0],
+                    'nombreCompleto': dato[0],
                     'pass': aux_pass
                 }
                 user = self.create_user_by_data(user_data)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
-                    have_sso=False,
+                    have_sso=check_sso,
                     run=dato[2]
-                )
-            return edxlogin_user
+                    )
+            created = True
+        return edxlogin_user, created
 
-    def create_user_external(self, user_data, dato):
+    def check_rut_have_sso(self, rut):
+        """
+        Check if rut have sso
+        """
+        headers = {
+            'AppKey': settings.EDXLOGIN_KEY,
+            'Origin': settings.LMS_ROOT_URL
+        }
+        params = (('indiv_id', rut),)
+        base_url = settings.EDXLOGIN_USER_INFO_URL
+        result = requests.get(base_url, headers=headers, params=params)
+
+        if result.status_code != 200:
+            logger.error(
+                "{} {}".format(
+                    result.request,
+                    result.request.headers))
+            return False
+
+        data = json.loads(result.text)
+        if data["data"]["getRowsPersona"] is None:
+            return False
+        if data['data']['getRowsPersona']['status_code'] != 200:
+            logger.error(
+                "Api Error: {}, body: {}, username: {}".format(
+                    data['data']['getRowsPersona']['status_code'],
+                    result.text,
+                    username))
+            return False
+        if len(data["data"]["getRowsPersona"]["persona"]) == 0:
+            return False
+        if len(data["data"]["getRowsPersona"]["persona"][0]['pasaporte']) == 0:
+            return False
+        return True
+
+    def create_user_external(self, user_data):
         """
             Create the user given the user data.
             If the email exists, get new email address.
         """
         with transaction.atomic():
-            user_data['email'] = dato[1] if dato[1] != 'null' else self.get_user_email(user_data['rut'])
-            if user_data['email'] == 'null':
-                return None
             user = self.create_user_by_data(user_data)
             edxlogin_user = EdxLoginUser.objects.create(
                 user=user,
