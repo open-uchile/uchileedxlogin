@@ -78,22 +78,22 @@ class Content(object):
         if result.status_code != 200:
             logger.error(
                 "Api Error: {}, body: {}, username: {}".format(
-                    data['data']['getRowsPersona']['status_code'],
+                    result.status_code,
                     result.text,
                     username))
             raise Exception(
-                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
+                "Doesnt exists username in PH API, status_code: {}, username: {}".format(
                     result.status_code, username))
 
         data = json.loads(result.text)
         if data["data"]["getRowsPersona"] is None:
             logger.error(
                 "Doesnt exists rut in PH API, status_code: {}, body: {}, username: {}".format(
-                    data['data']['getRowsPersona']['status_code'],
+                    result.status_code,
                     result.text,
                     username))
             raise Exception(
-                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
+                "Doesnt exists username in PH API, status_code: {}, username: {}".format(
                     result.status_code, username))
         if data['data']['getRowsPersona']['status_code'] != 200:
             logger.error(
@@ -102,7 +102,7 @@ class Content(object):
                     result.text,
                     username))
             raise Exception(
-                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
+                "Doesnt exists username in PH API, status_code: {}, username: {}".format(
                     result.status_code, username))
         if len(data["data"]["getRowsPersona"]["persona"]) == 0:
             logger.error(
@@ -111,7 +111,7 @@ class Content(object):
                     result.text,
                     username))
             raise Exception(
-                "Doesnt exists username in PH API, status_codde: {}, username: {}".format(
+                "Doesnt exists username in PH API, status_code: {}, username: {}".format(
                     result.status_code, username))
         if len(data["data"]["getRowsPersona"]["persona"][0]['pasaporte']) == 0:
             logger.error(
@@ -120,7 +120,7 @@ class Content(object):
                     result.text,
                     rut))
             raise Exception(
-                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                "Doesnt exists rut in PH API, status_code: {}, rut: {}".format(
                     result.status_code, rut))
         getRowsPersona = data["data"]["getRowsPersona"]['persona'][0]
         user_data = {
@@ -148,22 +148,22 @@ class Content(object):
         if result.status_code != 200:
             logger.error(
                 "Api Error: {}, body: {}, rut: {}".format(
-                    data['data']['getRowsPersona']['status_code'],
+                    result.status_code,
                     result.text,
                     rut))
             raise Exception(
-                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                "Doesnt exists rut in PH API, status_code: {}, rut: {}".format(
                     result.status_code, rut))
 
         data = json.loads(result.text)
         if data["data"]["getRowsPersona"] is None:
             logger.error(
                 "Doesnt exists rut in PH API, status_code: {}, body: {}, rut: {}".format(
-                    data['data']['getRowsPersona']['status_code'],
+                    result.status_code,
                     result.text,
                     rut))
             raise Exception(
-                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                "Doesnt exists rut in PH API, status_code: {}, rut: {}".format(
                     result.status_code, rut))
         if data['data']['getRowsPersona']['status_code'] != 200:
             logger.error(
@@ -172,7 +172,7 @@ class Content(object):
                     result.text,
                     rut))
             raise Exception(
-                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                "Doesnt exists rut in PH API, status_code: {}, rut: {}".format(
                     result.status_code, rut))
         if len(data["data"]["getRowsPersona"]["persona"]) == 0:
             logger.error(
@@ -181,7 +181,7 @@ class Content(object):
                     result.text,
                     rut))
             raise Exception(
-                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                "Doesnt exists rut in PH API, status_code: {}, rut: {}".format(
                     result.status_code, rut))
         if len(data["data"]["getRowsPersona"]["persona"][0]['pasaporte']) == 0:
             logger.error(
@@ -190,7 +190,7 @@ class Content(object):
                     result.text,
                     rut))
             raise Exception(
-                "Doesnt exists rut in PH API, status_codde: {}, rut: {}".format(
+                "Doesnt exists rut in PH API, status_code: {}, rut: {}".format(
                     result.status_code, rut))
         getRowsPersona = data["data"]["getRowsPersona"]['persona'][0]
         user_data = {

@@ -167,11 +167,11 @@ p {
                 <label for="modes" style="line-height: 33px; text-align: right; clear: both; margin-right: 15px; font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif">Modo:</label>
                 <select class="inputwidth1" style="font-style: normal; font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;" name='modes'>
                     % if context.get('modo', "") == 'honor':
-                        <option value="audit">Equipo Docente</option>
-                        <option value="honor" selected>Estudiante</option>
+                        <option value="audit">Audit</option>
+                        <option value="honor" selected>Honor</option>
                     % else:
-                        <option value="audit" selected>Equipo Docente</option>
-                        <option value="honor">Estudiante</option>
+                        <option value="audit" selected>Audit</option>
+                        <option value="honor">Honor</option>
                     % endif
                 </select>
             </div>
