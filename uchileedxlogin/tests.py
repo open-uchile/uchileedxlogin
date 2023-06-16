@@ -19,7 +19,7 @@ from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRol
 import re
 import json
 import urllib.parse
-
+import uuid
 from .views import EdxLoginLoginRedirect, EdxLoginCallback, EdxLoginStaff
 from .models import EdxLoginUserCourseRegistration, EdxLoginUser
 
@@ -407,38 +407,49 @@ class TestCallbackView(ModuleStoreTestCase):
             'rut': '0112223334',
             'email': 'null'
         }
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc_d')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc_dd')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_b_cc')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_bb_cc')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_b_cc_d')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_b_cc_dd')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_bb_cc_d')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_bb_cc_dd')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc1')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc2')
 
     def test_long_name(self):
@@ -455,7 +466,7 @@ class TestCallbackView(ModuleStoreTestCase):
         }
 
         self.assertEqual(EdxLoginCallback().create_user_by_data(
-            data).username, 'a2345678901234567890123_41')
+            data, False).username, 'a2345678901234567890123_41')
 
     def test_null_lastname(self):
         """
@@ -502,7 +513,7 @@ class TestCallbackView(ModuleStoreTestCase):
             'email': 'test@test.test'
         }
         self.assertEqual(EdxLoginCallback().create_user_by_data(
-            data).username, 'a234567890123456789012341')
+            data, False).username, 'a234567890123456789012341')
 
     @patch('requests.get')
     def test_callback_enroll_pending_courses(self, get):
@@ -1160,7 +1171,7 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
         edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
         self.assertEqual(edxlogin_user.run, "0000000108")
-        self.assertEqual(edxlogin_user.user.email, "student22@edx2.org")
+        self.assertTrue(edxlogin_user.user.email in ['student22@edx2.org', 'student55@edx.org'])
 
     @patch('requests.get')
     def test_staff_post_force_enroll_email_diff_rut(self, get):

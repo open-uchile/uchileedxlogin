@@ -23,7 +23,6 @@ from lms.djangoapps.courseware.access import has_access
 from common.djangoapps.util.json_request import JsonResponse, JsonResponseBadRequest
 import json
 import requests
-import uuid
 import unidecode
 import logging
 import sys
@@ -230,7 +229,7 @@ class Content(object):
                         diff = list(set(user_data['emails']) - set(emails))
                         if diff:
                             user_data['email'] = diff[0]
-                            user = self.create_user_by_data(user_data)
+                            user = self.create_user_by_data(user_data, False)
                         else:
                             return None
                 else:
@@ -238,7 +237,7 @@ class Content(object):
                     for email in user_data['emails']:
                         if '@uchile.cl' in email:
                             user_data['email'] = email
-                    user = self.create_user_by_data(user_data)
+                    user = self.create_user_by_data(user_data, False)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
                     have_sso=True,
@@ -246,7 +245,7 @@ class Content(object):
                 )
             return edxlogin_user
 
-    def create_user_by_data(self, user_data):
+    def create_user_by_data(self, user_data, have_pass):
         """
         Create the user by the Django model
         """
@@ -255,11 +254,10 @@ class Content(object):
         username = self.generate_username(user_data)
         if 'nombreCompleto' not in user_data:
             user_data['nombreCompleto'] = '{} {} {}'.format(user_data['nombres'], user_data['apellidoPaterno'], user_data['apellidoMaterno'])
-        aux_pass = BaseUserManager().make_random_password(12)
-        aux_pass = aux_pass.lower()
-        user_pass = aux_pass if 'pass' not in user_data else user_data['pass']  # Temporary password
-        if user_data['email'] == 'null':
-            user_data['email'] = str(uuid.uuid4()) + '@invalid.invalid'
+        if have_pass:
+            user_pass = user_data['pass']
+        else:
+            user_pass = BaseUserManager().make_random_password(12)
         form = AccountCreationForm(
             data={
                 "username": username,
@@ -1224,7 +1222,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
                             'nombreCompleto':dato[0],
                             'pass': aux_pass
                         }
-                        user = self.create_user_by_data(user_data)
+                        user = self.create_user_by_data(user_data, True)
                     for course_id in course_ids:
                         self.enroll_course_user(user, course_id, enroll, mode)
                     lista_saved.append({
@@ -1254,11 +1252,6 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     run=dato[2]
                 )
         else:
-            user_data = {
-                    'email': dato[1],
-                    'nombreCompleto': dato[0],
-                    'pass': aux_pass
-                }
             try:
                 check_sso = self.check_rut_have_sso(dato[2])
             except Exception:
@@ -1269,7 +1262,7 @@ class EdxLoginExternal(View, Content, ContentStaff):
                     'nombreCompleto': dato[0],
                     'pass': aux_pass
                 }
-                user = self.create_user_by_data(user_data)
+                user = self.create_user_by_data(user_data, True)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
                     have_sso=check_sso,
@@ -1313,20 +1306,6 @@ class EdxLoginExternal(View, Content, ContentStaff):
             return False
         return True
 
-    def create_user_external(self, user_data):
-        """
-            Create the user given the user data.
-            If the email exists, get new email address.
-        """
-        with transaction.atomic():
-            user = self.create_user_by_data(user_data)
-            edxlogin_user = EdxLoginUser.objects.create(
-                user=user,
-                have_sso=True,
-                run=user_data['rut']
-            )
-        return edxlogin_user
-    
     def enroll_course_user(self, user, course, enroll, mode):
         """
             Enroll the user in the course.

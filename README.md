@@ -36,8 +36,8 @@ To enable enroll/unenroll users button in your theme add the next code:
                 <label>
                     ${_("Role of the users being enrolled.")}
                     <select id="role-run" name="role-run">
-                        <option value="honor" selected>Estudiante</option>
-                        <option value="audit">Equipo Docente</option>
+                        <option value="honor" selected>Honor</option>
+                        <option value="audit">Audit</option>
                     </select>
                 </label>
             </div>
