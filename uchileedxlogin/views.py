@@ -199,53 +199,9 @@ class Content(object):
             'nombres': getRowsPersona['nombres'],
             'apellidoPaterno': getRowsPersona['paterno'],
             'apellidoMaterno': getRowsPersona['materno'],
-            'emails': [email["email"] for email in getRowsPersona["email"]] #to do: check if email list have principal email
+            'emails': [email["email"] for email in getRowsPersona["email"]]
         }
         return user_data
-
-    def get_user_email(self, rut):
-        """
-        Get the user email
-        """
-        parameters = {
-            'rut': rut
-        }
-        result = requests.post(
-            settings.EDXLOGIN_USER_EMAIL,
-            data=json.dumps(parameters),
-            headers={
-                'content-type': 'application/json'})
-        if result.status_code == 200:
-            data = json.loads(result.text)
-            if 'emails' in data:
-                return self.verify_email_principal(data)
-        return 'null'
-
-    def verify_email_principal(self, data):
-        """
-            Verify if data have principal email
-        """
-        for mail in data['emails']:
-            if mail['nombreTipoEmail'] == 'PRINCIPAL':
-                if mail['email'] is not None and re.match(
-                        regex, mail['email'].lower()):
-                    if not User.objects.filter(email=mail['email']).exists():
-                        return mail['email']
-
-        return self.verify_email_alternativo(data)
-
-    def verify_email_alternativo(self, data):
-        """
-            Verify if data have alternative email
-        """
-        for mail in data['emails']:
-            if mail['nombreTipoEmail'] == 'ALTERNATIVO':
-                if mail['email'] is not None and re.match(
-                        regex, mail['email'].lower()):
-                    if not User.objects.filter(email=mail['email']).exists():
-                        return mail['email']
-
-        return 'null'
 
     def get_or_create_user(self, user_data):
         """
@@ -256,12 +212,32 @@ class Content(object):
             return clave_user
         except EdxLoginUser.DoesNotExist:
             with transaction.atomic():
-                user_data['email'] = user_data['emails'][0] #to do: check if email list have principal email
-                try:
-                    user = User.objects.get(email=user_data['email'])
-                    if EdxLoginUser.objects.filter(user=user).exists():
-                        return None
-                except User.DoesNotExist:
+                exists_user = User.objects.filter(email__in=user_data['emails'])
+                if exists_user:
+                    valid_users = []
+                    is_uchile = None
+                    for x in exists_user:
+                        if not EdxLoginUser.objects.filter(user=x).exists() and x.is_active:
+                            valid_users.append(x)
+                            if '@uchile.cl' in x.email:
+                                is_uchile = x
+                    if is_uchile:
+                        user = is_uchile
+                    elif valid_users:
+                        user = valid_users[0]
+                    else:
+                        emails = [x.email for x in exists_user]
+                        diff = list(set(user_data['emails']) - set(emails))
+                        if diff:
+                            user_data['email'] = diff[0]
+                            user = self.create_user_by_data(user_data)
+                        else:
+                            return None
+                else:
+                    user_data['email'] = user_data['emails'][0]
+                    for email in user_data['emails']:
+                        if '@uchile.cl' in email:
+                            user_data['email'] = email
                     user = self.create_user_by_data(user_data)
                 edxlogin_user = EdxLoginUser.objects.create(
                     user=user,
@@ -715,7 +691,7 @@ class EdxLoginCallback(View, Content):
         user_data = self.get_user_data(username)
         edxlogin_user = self.get_or_create_user(user_data)
         if edxlogin_user is None:
-            logger.error("EdxLoginCallback - Error to get or create user, email: {}, rut: {}".format(user_data['email'], user_data['rut']))
+            logger.error("EdxLoginCallback - Error to get or create user, user_data: {}".format(user_data))
             return False
         if not edxlogin_user.have_sso:
             edxlogin_user.have_sso = True

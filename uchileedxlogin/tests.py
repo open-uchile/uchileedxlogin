@@ -1003,6 +1003,46 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
     @patch('requests.get')
+    def test_staff_post_force_enroll_uchile_email(self, get):
+        """
+            Test staff view post with force enroll normal process
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.cl'},{'email': 'test@test2.cl'},{'email': 'test@uchile.cl'}],
+                  "indiv_id": "0000000108"}]}}}))]
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "test@uchile.cl")
+
+    @patch('requests.get')
     def test_staff_post_force_enroll_exists_email(self, get):
         """
             Test staff view post with force enroll normal process
@@ -1041,6 +1081,86 @@ class TestStaffView(ModuleStoreTestCase):
         edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
         self.assertEqual(edxlogin_user.run, "0000000108")
         self.assertEqual(edxlogin_user.user.email, "student@edx.org")
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_exists_email_2(self, get):
+        """
+            Test staff view post with force enroll normal process
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'student22@edx2.org'},{'email': 'student@uchile.cl'},{'email': 'student@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "student@edx.org")
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_exists_email_3(self, get):
+        """
+            Test staff view post with force enroll normal process
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'student22@edx2.org'},{'email': 'student2@edx.org'},{'email': 'student55@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "student22@edx2.org")
 
     @patch('requests.get')
     def test_staff_post_force_enroll_email_diff_rut(self, get):
