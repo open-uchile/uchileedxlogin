@@ -2084,6 +2084,68 @@ class TestExternalView(ModuleStoreTestCase):
         self.assertEqual(edxlogin_user.user.email, "aux.student2@edx.org")
 
     @patch('requests.get')
+    def test_external_post_with_passport(self, get):
+        """
+            Test external view post with passport and (run,email) no exists in db platform
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "P123465789"}]}}}))]
+        post_data = {
+            'datos': 'aa bb cc dd, aux.student2@edx.org, P123465789',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertFalse(User.objects.filter(email="aux.student2@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertFalse('id="action_send"' in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="P123465789")
+        self.assertEqual(edxlogin_user.user.email, "aux.student2@edx.org")
+
+    @patch('requests.get')
+    def test_external_post_with_passport_lower(self, get):
+        """
+            Test external view post with passport and (run,email) no exists in db platform
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "P123465789"}]}}}))]
+        post_data = {
+            'datos': 'aa bb cc dd, aux.student2@edx.org, p123465789',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertFalse(User.objects.filter(email="aux.student2@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertFalse('id="action_send"' in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="P123465789")
+        self.assertEqual(edxlogin_user.user.email, "aux.student2@edx.org")
+
+    @patch('requests.get')
     def test_external_post_with_run_exists_email(self, get):
         """
             Test external view post with run,email exists, run no exists in db platform

@@ -1061,6 +1061,8 @@ class EdxLoginExternal(View, Content, ContentStaff):
                 else:
                     if len(data) == 2:
                         data.append("")
+                    else:
+                        data[2] = data[2].upper()
                     if data[0] != "" and data[1] != "":
                         aux_name = unidecode.unidecode(data[0])
                         aux_name = re.sub(r'[^a-zA-Z0-9\_]', ' ', aux_name)
