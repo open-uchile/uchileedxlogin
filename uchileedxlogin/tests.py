@@ -19,7 +19,7 @@ from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRol
 import re
 import json
 import urllib.parse
-
+import uuid
 from .views import EdxLoginLoginRedirect, EdxLoginCallback, EdxLoginStaff
 from .models import EdxLoginUserCourseRegistration, EdxLoginUser
 
@@ -69,11 +69,15 @@ class TestCallbackView(ModuleStoreTestCase):
                 password='12345',
                 email='test555@test.test',
                 is_staff=True)
+            user2 = UserFactory(
+                username='testuser22',
+                password='12345',
+                email='test22@test.test',
+                is_staff=True)
         EdxLoginUser.objects.create(user=user, run='009472337K', have_sso=False)
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_login_parameters(self, get, post):
+    def test_login_parameters(self, get):
         """
             Test normal process
         """
@@ -85,41 +89,30 @@ class TestCallbackView(ModuleStoreTestCase):
                            namedtuple("Request",
                                       ["status_code",
                                        "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST.NAME",
-                                                            "nombreCompleto": "TEST.NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
-
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST.NAME",
+                                                     'email': [{'email': 'test@test.test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket',
                 'next': 'aHR0cHM6Ly9lb2wudWNoaWxlLmNsLw=='})
         self.assertEqual(result.status_code, 302)
-
-        username = parse_qs(get.call_args_list[1][1]['params'])
+        username = get.call_args_list[1][1]['params'][0]
         self.assertEqual(
             get.call_args_list[0][0][0],
             settings.EDXLOGIN_RESULT_VALIDATE)
-        self.assertEqual(username['username'][0], 'test.name')
+        self.assertEqual(username[1], '"test.name"')
         self.assertEqual(
             get.call_args_list[1][0][0],
             settings.EDXLOGIN_USER_INFO_URL)
-        self.assertEqual(
-            post.call_args_list[0][0][0],
-            settings.EDXLOGIN_USER_EMAIL)
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user(self, get, post):
+    def test_login_create_user(self, get):
         """
             Test create user normal process
         """
@@ -131,18 +124,14 @@ class TestCallbackView(ModuleStoreTestCase):
                            namedtuple("Request",
                                       ["status_code",
                                        "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test@test.test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
+
 
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
@@ -152,11 +141,10 @@ class TestCallbackView(ModuleStoreTestCase):
         self.assertEqual(edxlogin_user.run, "0112223334")
         self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_login_update_have_sso_param(self, get, post):
+    def test_login_create_user_email_exists(self, get):
         """
-            Test callback update have_sso param
+            Test create user normal process when email exists but rut params dont exists on db
         """
         # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
@@ -166,18 +154,128 @@ class TestCallbackView(ModuleStoreTestCase):
                            namedtuple("Request",
                                       ["status_code",
                                        "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "009472337K"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "009472337K",
-                                                                         "email": "test555@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test22@test.test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
+        self.assertFalse(EdxLoginUser.objects.filter(run="0112223334").exists())
+        result = self.client.get(
+            reverse('uchileedxlogin-login:callback'),
+            data={
+                'ticket': 'testticket'})
+        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
+        self.assertEqual(edxlogin_user.run, "0112223334")
+        self.assertEqual(edxlogin_user.user.email, "test22@test.test")
+
+    @patch('requests.get')
+    def test_login_error_to_get_data(self, get):
+        """
+            Test create user when fail to get data from ph api
+        """
+        get.side_effect = [namedtuple("Request",
+                                      ["status_code",
+                                       "content"])(200,
+                                                   ('yes\ntest.name\n').encode('utf-8')),
+                           namedtuple("Request",
+                                      ["status_code",
+                                       "text"])(200,
+                                                json.dumps({'data':{'getRowsPersona':None}}))]
+
+
+        result = self.client.get(
+            reverse('uchileedxlogin-login:callback'),
+            data={'ticket': 'testticket'})
+        self.assertFalse(EdxLoginUser.objects.filter(run="0112223334").exists())
+
+    @patch('requests.get')
+    def test_login_error_to_get_data_2(self, get):
+        """
+            Test create user when fail to get data from ph api
+        """
+        get.side_effect = [namedtuple("Request",
+                                      ["status_code",
+                                       "content"])(200,
+                                                   ('yes\ntest.name\n').encode('utf-8')),
+                           namedtuple("Request",
+                                      ["status_code",
+                                       "text"])(200,
+                                                json.dumps({'data':{'getRowsPersona':{'status_code': 400,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test@test.test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
+
+
+        result = self.client.get(
+            reverse('uchileedxlogin-login:callback'),
+            data={'ticket': 'testticket'})
+        self.assertFalse(EdxLoginUser.objects.filter(run="0112223334").exists())
+
+    @patch('requests.get')
+    def test_login_error_to_get_data_3(self, get):
+        """
+            Test create user when fail to get data from ph api
+        """
+        get.side_effect = [namedtuple("Request",
+                                      ["status_code",
+                                       "content"])(200,
+                                                   ('yes\ntest.name\n').encode('utf-8')),
+                           namedtuple("Request",
+                                      ["status_code",
+                                       "text"])(200,
+                                                json.dumps({'data':{'getRowsPersona':{'status_code': 400,'persona':[]}}}))]
+
+
+        result = self.client.get(
+            reverse('uchileedxlogin-login:callback'),
+            data={'ticket': 'testticket'})
+        self.assertFalse(EdxLoginUser.objects.filter(run="0112223334").exists())
+
+    @patch('requests.get')
+    def test_login_error_to_get_data_4(self, get):
+        """
+            Test create user when fail to get data from ph api
+        """
+        get.side_effect = [namedtuple("Request",
+                                      ["status_code",
+                                       "content"])(200,
+                                                   ('yes\ntest.name\n').encode('utf-8')),
+                           namedtuple("Request",
+                                      ["status_code",
+                                       "text"])(200,
+                                                json.dumps({'data':{'getRowsPersona':{'status_code': 400}}}))]
+
+
+        result = self.client.get(
+            reverse('uchileedxlogin-login:callback'),
+            data={'ticket': 'testticket'})
+        self.assertFalse(EdxLoginUser.objects.filter(run="0112223334").exists())
+
+    @patch('requests.get')
+    def test_login_update_have_sso_param(self, get):
+        """
+            Test callback update have_sso param
+        """
+        # Assert requests.get calls
+        get.side_effect = [namedtuple("Request",
+                                      ["status_code",
+                                       "content"])(200,
+                                                   ('yes\ntest.name\n').encode('utf-8')),
+                            namedtuple("Request",
+                                      ["status_code",
+                                       "text"])(200,
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test@test.test'}],
+                                                     "indiv_id": "009472337K"}]}}}))]
         edxlogin_user = EdxLoginUser.objects.get(run="009472337K")
         self.assertFalse(edxlogin_user.have_sso)
         result = self.client.get(
@@ -189,39 +287,8 @@ class TestCallbackView(ModuleStoreTestCase):
         self.assertTrue(edxlogin_user.have_sso)
         self.assertEqual(edxlogin_user.user.email, "test555@test.test")
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user_no_email(self, get, post):
-        """
-            Test create user when email is empty
-        """
-        # Assert requests.get calls
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "content"])(200,
-                                                   ('yes\ntest.name\n').encode('utf-8')),
-                           namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request", ["status_code", "text"])(
-            200, json.dumps({'data': 'algo'}))]
-
-        result = self.client.get(
-            reverse('uchileedxlogin-login:callback'),
-            data={
-                'ticket': 'testticket'})
-        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
-        self.assertEqual(edxlogin_user.run, "0112223334")
-        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
-
-    @patch('requests.post')
-    @patch('requests.get')
-    def test_login_create_user_wrong_email(self, get, post):
+    def test_login_create_user_wrong_email(self, get):
         """
             Test create user when email is wrong
         """
@@ -233,34 +300,28 @@ class TestCallbackView(ModuleStoreTestCase):
                            namedtuple("Request",
                                       ["status_code",
                                        "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "sin@correo",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test@test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
+
 
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
-        self.assertEqual(edxlogin_user.run, "0112223334")
-        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0112223334").exists())
+        request = urllib.parse.urlparse(result.url)
+        self.assertEqual(request.path, '/uchileedxlogin/login/')
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user_fail_email_404(self, get, post):
+    def test_login_create_user_email_diff_rut(self, get):
         """
-            Test create user when get email fail
+            Test create user when email have different rut param
         """
-        # Assert requests.get calls
         get.side_effect = [namedtuple("Request",
                                       ["status_code",
                                        "content"])(200,
@@ -268,167 +329,25 @@ class TestCallbackView(ModuleStoreTestCase):
                            namedtuple("Request",
                                       ["status_code",
                                        "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(404,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "sin@correo",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test555@test.test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
+
 
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
             data={
                 'ticket': 'testticket'})
-        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
-        self.assertEqual(edxlogin_user.run, "0112223334")
-        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0112223334").exists())
+        request = urllib.parse.urlparse(result.url)
+        self.assertEqual(request.path, '/uchileedxlogin/login/')
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_login_create_user_null_email(self, get, post):
-        """
-            Test create user when email is Null
-        """
-        # Assert requests.get calls
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "content"])(200,
-                                                   ('yes\ntest.name\n').encode('utf-8')),
-                           namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request", ["status_code", "text"])(200, json.dumps({"emails": [
-            {"rut": "0112223334", "email": None, "codigoTipoEmail": "1", "nombreTipoEmail": "PRINCIPAL"}]}))]
-
-        result = self.client.get(
-            reverse('uchileedxlogin-login:callback'),
-            data={
-                'ticket': 'testticket'})
-        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
-        self.assertEqual(edxlogin_user.run, "0112223334")
-        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
-
-    @patch('requests.post')
-    @patch('requests.get')
-    def test_login_create_user_wrong_email_principal(
-            self, get, post):
-        """
-            Test create user when principal email is wrong
-        """
-        # Assert requests.get calls
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "content"])(200,
-                                                   ('yes\ntest.name\n').encode('utf-8')),
-                           namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "sin@correo",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"},
-                                                                        {"rut": "0112223334",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "ALTERNATIVO"}]}))]
-
-        self.client.get(
-            reverse('uchileedxlogin-login:callback'),
-            data={
-                'ticket': 'testticket'})
-        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
-        self.assertEqual(edxlogin_user.run, "0112223334")
-        self.assertEqual(edxlogin_user.user.email, "test@test.test")
-
-    @patch('requests.post')
-    @patch('requests.get')
-    def test_login_create_user_no_email_principal(
-            self, get, post):
-        """
-            Test create user when principal email is empty
-        """
-        # Assert requests.get calls
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "content"])(200,
-                                                   ('yes\ntest.name\n').encode('utf-8')),
-                           namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "ALTERNATIVO"}]}))]
-
-        result = self.client.get(
-            reverse('uchileedxlogin-login:callback'),
-            data={
-                'ticket': 'testticket'})
-        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
-        self.assertEqual(edxlogin_user.run, "0112223334")
-        self.assertEqual(edxlogin_user.user.email, "test@test.test")
-
-    @patch('requests.post')
-    @patch('requests.get')
-    def test_login_create_user_no_email_alternativo(
-            self, get, post):
-        """
-            Test create user when email is empty
-        """
-        # Assert requests.get calls
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "content"])(200,
-                                                   ('yes\ntest.name\n').encode('utf-8')),
-                           namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request", ["status_code", "text"])(
-            200, json.dumps({"emails": []}))]
-
-        result = self.client.get(
-            reverse('uchileedxlogin-login:callback'),
-            data={
-                'ticket': 'testticket'})
-        edxlogin_user = EdxLoginUser.objects.get(run="0112223334")
-        self.assertEqual(edxlogin_user.run, "0112223334")
-        self.assertIn("@invalid.invalid", edxlogin_user.user.email)
-
-    @patch('requests.post')
-    @patch('requests.get')
-    def test_login_wrong_ticket(self, get, post):
+    def test_login_wrong_ticket(self, get):
         """
             Test callback when ticket is wrong
         """
@@ -440,19 +359,13 @@ class TestCallbackView(ModuleStoreTestCase):
                            namedtuple("Request",
                                       ["status_code",
                                        "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
-
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test@test.test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
             data={
@@ -460,9 +373,8 @@ class TestCallbackView(ModuleStoreTestCase):
         request = urllib.parse.urlparse(result.url)
         self.assertEqual(request.path, '/uchileedxlogin/login/')
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_login_wrong_username(self, get, post):
+    def test_login_wrong_username(self, get):
         """
             Test callback when username is wrong
         """
@@ -471,19 +383,11 @@ class TestCallbackView(ModuleStoreTestCase):
             namedtuple(
                 "Request", [
                     "status_code", "content"])(
-                200, ('yes\nwrongname\n').encode('utf-8')), namedtuple(
-                    "Request", [
-                        "status_code", "text"])(
-                            200, json.dumps(
-                                {}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
-
+                200, ('yes\nwrongname\n').encode('utf-8')), 
+            namedtuple("Request",
+                ["status_code",
+                "text"])(200,
+                        json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[]}}}))]
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
             data={
@@ -500,42 +404,52 @@ class TestCallbackView(ModuleStoreTestCase):
             'apellidoMaterno': 'dd',
             'nombres': 'aa bb',
             'apellidoPaterno': 'cc',
-            'nombreCompleto': 'aa bb cc dd',
             'rut': '0112223334',
             'email': 'null'
         }
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc_d')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc_dd')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_b_cc')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_bb_cc')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_b_cc_d')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_b_cc_dd')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_bb_cc_d')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_bb_cc_dd')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc1')
+        data['email'] =  str(uuid.uuid4()) + '@invalid.invalid'
         self.assertEqual(
-            EdxLoginCallback().create_user_by_data(dict(data)).username,
+            EdxLoginCallback().create_user_by_data(dict(data), False).username,
             'aa_cc2')
 
     def test_long_name(self):
@@ -547,13 +461,12 @@ class TestCallbackView(ModuleStoreTestCase):
             'apellidoMaterno': 'ff',
             'nombres': 'a2345678901234567890123 bb',
             'apellidoPaterno': '4567890',
-            'nombreCompleto': 'a2345678901234567890123 bb 4567890 ff',
             'rut': '0112223334',
             'email': 'test@test.test'
         }
 
         self.assertEqual(EdxLoginCallback().create_user_by_data(
-            data).username, 'a2345678901234567890123_41')
+            data, False).username, 'a2345678901234567890123_41')
 
     def test_null_lastname(self):
         """
@@ -596,16 +509,14 @@ class TestCallbackView(ModuleStoreTestCase):
             'apellidoMaterno': 'ff',
             'nombres': 'a23456789012345678901234 bb',
             'apellidoPaterno': '4567890',
-            'nombreCompleto': 'a23456789012345678901234 bb 4567890 ff',
             'rut': '0112223334',
             'email': 'test@test.test'
         }
         self.assertEqual(EdxLoginCallback().create_user_by_data(
-            data).username, 'a234567890123456789012341')
+            data, False).username, 'a234567890123456789012341')
 
-    @patch("requests.post")
     @patch('requests.get')
-    def test_test(self, get, post):
+    def test_callback_enroll_pending_courses(self, get):
         """
             Test callback enroll when user have pending course with auto enroll and not auto enroll
         """
@@ -639,18 +550,14 @@ class TestCallbackView(ModuleStoreTestCase):
                            namedtuple("Request",
                                       ["status_code",
                                        "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST.NAME",
-                                                            "nombreCompleto": "TEST.NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0112223334"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0112223334",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+                                                json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                                                    {"paterno": "TESTLASTNAME",
+                                                     "materno": "TESTLASTNAME",
+                                                     'pasaporte': [{'usuario':'username'}],
+                                                     "nombres": "TEST NAME",
+                                                     'email': [{'email': 'test@test.test'}],
+                                                     "indiv_id": "0112223334"}]}}}))]
+
         self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 2)
         result = self.client.get(
             reverse('uchileedxlogin-login:callback'),
@@ -1066,9 +973,8 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertTrue(
             "id=\"run_saved_enroll_no_auto\"" in response._container[0].decode())
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_enroll(self, get, post):
+    def test_staff_post_force_enroll(self, get):
         """
             Test staff view post with force enroll normal process
         """
@@ -1080,38 +986,18 @@ class TestStaffView(ModuleStoreTestCase):
             'enroll': '1',
             'force': '1'
         }
-        data = {"cuentascorp": [{"cuentaCorp": "avilio.perez@ug.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "ug.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@u.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "u.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
 
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
@@ -1127,9 +1013,370 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(edxlogin_user.run, "0000000108")
         self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_no_enroll(self, get, post):
+    def test_staff_post_force_enroll_uchile_email(self, get):
+        """
+            Test staff view post with force enroll normal process
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.cl'},{'email': 'test@test2.cl'},{'email': 'test@uchile.cl'}],
+                  "indiv_id": "0000000108"}]}}}))]
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "test@uchile.cl")
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_exists_email(self, get):
+        """
+            Test staff view post with force enroll normal process
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'student@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "student@edx.org")
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_exists_email_2(self, get):
+        """
+            Test staff view post with force enroll normal process
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'student22@edx2.org'},{'email': 'student@uchile.cl'},{'email': 'student@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertEqual(edxlogin_user.user.email, "student@edx.org")
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_exists_email_3(self, get):
+        """
+            Test staff view post with force enroll normal process
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'student22@edx2.org'},{'email': 'student2@edx.org'},{'email': 'student55@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
+
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_enroll\"" not in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertEqual(edxlogin_user.run, "0000000108")
+        self.assertTrue(edxlogin_user.user.email in ['student22@edx2.org', 'student55@edx.org'])
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_email_diff_rut(self, get):
+        """
+            Test staff view post with force enroll when fail to get data from ph api
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'student2@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" not in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 1)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_error_to_get_data(self, get):
+        """
+            Test staff view post with force enroll when fail to get data from ph api
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" not in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 1)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_error_to_get_data_2(self, get):
+        """
+            Test staff view post with force enroll when fail to get data from ph api
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[]}}}))]
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" not in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 1)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_error_to_get_data_3(self, get):
+        """
+            Test staff view post with force enroll when fail to get data from ph api
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':400,'persona':[]}}}))]
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" not in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 1)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_error_to_get_data_4(self, get):
+        """
+            Test staff view post with force enroll when fail to get data from ph api
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':None}}))]
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" not in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 1)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+
+    @patch('requests.get')
+    def test_staff_post_force_enroll_error_to_get_data_5(self, get):
+        """
+            Test staff view post with force enroll when fail to get data from ph api
+        """
+        post_data = {
+            'action': "staff_enroll",
+            'runs': '10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1',
+            'force': '1'
+        }
+
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(400,
+            json.dumps({}))]
+
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 0)
+        response = self.client.post(
+            reverse('uchileedxlogin-login:staff'), post_data)
+        request = response.request
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(request['PATH_INFO'], '/uchileedxlogin/staff/')
+        self.assertTrue("id=\"run_saved_force\"" not in response._container[0].decode())
+        self.assertTrue("id=\"run_saved_pending\"" in response._container[0].decode())
+        self.assertEqual(EdxLoginUserCourseRegistration.objects.count(), 1)
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+
+    @patch('requests.get')
+    def test_staff_post_force_no_enroll(self, get):
         """
             Test staff view post with force enroll without auto enroll
         """
@@ -1141,38 +1388,17 @@ class TestStaffView(ModuleStoreTestCase):
             'force': '1'
         }
 
-        data = {"cuentascorp": [{"cuentaCourseEnrollmentFactoryCorp": "avilio.perez@ug.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "ug.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@u.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "u.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
-
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
 
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
@@ -1188,9 +1414,8 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(edxlogin_user.run, "0000000108")
         self.assertEqual(edxlogin_user.user.email, "test@test.test")
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_force_no_user(self, get, post):
+    def test_staff_post_force_no_user(self, get):
         """
             Test staff view post with force enroll when fail get username
         """
@@ -1203,24 +1428,7 @@ class TestStaffView(ModuleStoreTestCase):
             'force': '1'
         }
 
-        data = {"cuentascorp": [{"cuentaCorp": "avilio.perez@ug.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "ug.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@u.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "u.uchile.cl"}]}
-
         get.side_effect = [namedtuple("Request", ["status_code"])(302)]
-        post.side_effect = [
-            namedtuple(
-                "Request", [
-                    "status_code", "text"])(
-                200, json.dumps(data)), namedtuple(
-                    "Request", ["status_code"])(302)]
-
         response = self.client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
         request = response.request
@@ -1272,9 +1480,8 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(r['parameters'], ["action"])
         self.assertEqual(r['info'], {"action": "test"})
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_staff_course(self, get, post):
+    def test_staff_post_staff_course(self, get):
         """
             Test staff view post when user is staff course
         """
@@ -1286,38 +1493,18 @@ class TestStaffView(ModuleStoreTestCase):
             'enroll': '1',
             'force': '1'
         }
-        data = {"cuentascorp": [{"cuentaCorp": "avilio.perez@ug.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "ug.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@u.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "u.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
 
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
 
         response = self.staff_user_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
@@ -1332,9 +1519,8 @@ class TestStaffView(ModuleStoreTestCase):
         self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")        
         self.assertEqual(aux.user.email, "test@test.test")
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_instructor_staff(self, get, post):
+    def test_staff_post_instructor_staff(self, get):
         """
             Test staff view post when user have permission
         """
@@ -1345,38 +1531,18 @@ class TestStaffView(ModuleStoreTestCase):
             'modes': 'audit',
             'enroll': '1'
         }
-        data = {"cuentascorp": [{"cuentaCorp": "avilio.perez@ug.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "ug.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@u.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "u.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
 
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
 
         response = self.instructor_staff_client.post(
             reverse('uchileedxlogin-login:staff'), post_data)
@@ -1385,9 +1551,8 @@ class TestStaffView(ModuleStoreTestCase):
         r = json.loads(response._container[0].decode())
         self.assertTrue(r['error_permission'], [str(self.course.id)])
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_instructor(self, get, post):
+    def test_staff_post_instructor(self, get):
         """
             Test staff view post when user is instructor
         """
@@ -1399,38 +1564,17 @@ class TestStaffView(ModuleStoreTestCase):
             'enroll': '1',
             'force': '1'
         }
-        data = {"cuentascorp": [{"cuentaCorp": "avilio.perez@ug.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "ug.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@u.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "u.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
-
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
 
         response = self.client_instructor.post(
             reverse('uchileedxlogin-login:staff'), post_data)
@@ -1445,9 +1589,8 @@ class TestStaffView(ModuleStoreTestCase):
         r = json.loads(response._container[0].decode())
         self.assertEqual(r['run_saved']['run_saved_force'], "TEST_TESTLASTNAME - 0000000108")
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_instructor_multiple_course(self, get, post):
+    def test_staff_post_instructor_multiple_course(self, get):
         """
             Test staff view post when user is instructor and multiple course
         """
@@ -1459,38 +1602,17 @@ class TestStaffView(ModuleStoreTestCase):
             'enroll': '1',
             'force': '1'
         }
-        data = {"cuentascorp": [{"cuentaCorp": "avilio.perez@ug.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "ug.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "uchile.cl"},
-                                {"cuentaCorp": "avilio.perez@u.uchile.cl",
-                                 "tipoCuenta": "EMAIL",
-                                 "organismoDominio": "u.uchile.cl"},
-                                {"cuentaCorp": "avilio.perez",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
-
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
 
         response = self.client_instructor.post(
             reverse('uchileedxlogin-login:staff'), post_data)
@@ -1624,9 +1746,8 @@ class TestStaffView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:staff'), post_data)
         self.assertEqual(response.status_code, 404)
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_staff_post_enroll_student(self, get, post):
+    def test_staff_post_enroll_student(self, get):
         """
             Test staff view post enroll when user is student 
         """
@@ -1931,35 +2052,22 @@ class TestExternalView(ModuleStoreTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue('id="lista_saved"' in response._container[0].decode())
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_external_post_with_run(self, get, post):
+    def test_external_post_with_run(self, get):
         """
             Test external view post with run and (run,email) no exists in db platform
         """
-        data = {"cuentascorp": [{"cuentaCorp": "test.test",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
-
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "0000000108"}]}}}))]
         post_data = {
             'datos': 'aa bb cc dd, aux.student2@edx.org, 10-8',
             'course': self.course.id,
@@ -1974,51 +2082,99 @@ class TestExternalView(ModuleStoreTestCase):
         self.assertFalse('id="action_send"' in response._container[0].decode())
         edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
         self.assertEqual(edxlogin_user.user.email, "aux.student2@edx.org")
-    
-    @patch('requests.post')
-    @patch('requests.get')
-    def test_external_post_with_run_exists_email(self, get, post):
-        """
-            Test external view post with run,email exists, run no exists in db platform
-        """
-        data = {"cuentascorp": [{"cuentaCorp": "test.test",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
 
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "test@test.test",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"}]}))]
+    @patch('requests.get')
+    def test_external_post_with_passport(self, get):
+        """
+            Test external view post with passport and (run,email) no exists in db platform
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "P123465789"}]}}}))]
         post_data = {
-            'datos': 'aa bb cc dd, student2@edx.org, 10-8',
+            'datos': 'aa bb cc dd, aux.student2@edx.org, P123465789',
             'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
-        self.assertTrue(User.objects.filter(email="student2@edx.org").exists())
-        self.assertFalse(User.objects.filter(email="test@test.test").exists())
+        self.assertFalse(User.objects.filter(email="aux.student2@edx.org").exists())
         response = self.client.post(
             reverse('uchileedxlogin-login:external'), post_data)
         self.assertEqual(response.status_code, 200)
         self.assertTrue('id="lista_saved"' in response._container[0].decode())
-        self.assertTrue('id="diff_email"' in response._container[0].decode())
+        self.assertFalse('id="action_send"' in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="P123465789")
+        self.assertEqual(edxlogin_user.user.email, "aux.student2@edx.org")
+
+    @patch('requests.get')
+    def test_external_post_with_passport_lower(self, get):
+        """
+            Test external view post with passport and (run,email) no exists in db platform
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test@test.test'}],
+                  "indiv_id": "P123465789"}]}}}))]
+        post_data = {
+            'datos': 'aa bb cc dd, aux.student2@edx.org, p123465789',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertFalse(User.objects.filter(email="aux.student2@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertFalse('id="action_send"' in response._container[0].decode())
+        edxlogin_user = EdxLoginUser.objects.get(run="P123465789")
+        self.assertEqual(edxlogin_user.user.email, "aux.student2@edx.org")
+
+    @patch('requests.get')
+    def test_external_post_with_run_exists_email(self, get):
+        """
+            Test external view post with run,email exists, run no exists in db platform
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'student@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
+        post_data = {
+            'datos': 'aa bb cc dd, student@edx.org, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertTrue(User.objects.filter(email="student@edx.org").exists())
+        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
         edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
-        self.assertEqual(edxlogin_user.user.email, "test@test.test")
+        self.assertEqual(edxlogin_user.user.email, "student@edx.org")
 
     def test_external_post_with_exists_run(self):
         """
@@ -2265,6 +2421,16 @@ class TestExternalView(ModuleStoreTestCase):
             reverse('uchileedxlogin-login:external'), post_data)
         self.assertEqual(response.status_code, 200)
         self.assertTrue('id="wrong_data"' in response._container[0].decode())
+        post_data = {
+            'datos': 'asdasd adsad, ásasdñasd@asad.cl',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="wrong_data"' in response._container[0].decode())
 
     def test_external_post_one_name(self):
         """
@@ -2371,39 +2537,22 @@ class TestExternalView(ModuleStoreTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue('id="action_send"' in response._container[0].decode())
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_external_post_with_run_exists_sso_email(self, get, post):
+    def test_external_post_with_run_email_diff_rut(self, get):
         """
-            Test external view post with run, sso email exists, run no exists in db platform
+            Test external view post with run, when email already have anther rut params
         """
-        data = {"cuentascorp": [{"cuentaCorp": "test.test",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
-
-        get.side_effect = [namedtuple("Request",
-                                      ["status_code",
-                                       "text"])(200,
-                                                json.dumps({"apellidoPaterno": "TESTLASTNAME",
-                                                            "apellidoMaterno": "TESTLASTNAME",
-                                                            "nombres": "TEST NAME",
-                                                            "nombreCompleto": "TEST NAME TESTLASTNAME TESTLASTNAME",
-                                                            "rut": "0000000108"}))]
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps(data)),
-                            namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(200,
-                                                 json.dumps({"emails": [{"rut": "0000000108",
-                                                                         "email": "instructor_staff@edx.org",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "PRINCIPAL"},
-                                                                        {"rut": "0112223334",
-                                                                         "email": "student2@edx.org",
-                                                                         "codigoTipoEmail": "1",
-                                                                         "nombreTipoEmail": "ALTERNATIVO"}]}))]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [{'usuario':'username'}],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'instructor_staff@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
         post_data = {
             'datos': 'aa bb cc dd, student2@edx.org, 10-8',
             'course': self.course.id,
@@ -2411,37 +2560,143 @@ class TestExternalView(ModuleStoreTestCase):
             'enroll': '1'
         }
         self.assertTrue(User.objects.filter(email="student2@edx.org").exists())
-        self.assertTrue(User.objects.filter(email="instructor_staff@edx.org").exists())
         response = self.client.post(
             reverse('uchileedxlogin-login:external'), post_data)
         self.assertEqual(response.status_code, 200)
         self.assertTrue('id="lista_not_saved"' in response._container[0].decode())
         self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
 
-    @patch('requests.post')
     @patch('requests.get')
-    def test_external_post_with_run_exists_fail_get_data_email_exists(self, get, post):
+    def test_external_post_with_run_fail_get_data(self, get):
         """
-            Test external view post with run,email exists, fail to get sso data, run no exists in db platform
+            Test external view post with run, when fail to get data from ph api
         """
-        data = {"cuentascorp": [{"cuentaCorp": "test.test",
-                                 "tipoCuenta": "CUENTA PASAPORTE",
-                                 "organismoDominio": "Universidad de Chile"}]}
-
-        post.side_effect = [namedtuple("Request",
-                                       ["status_code",
-                                        "text"])(404,
-                                                 json.dumps(data)),]
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[
+                 {"paterno": "TESTLASTNAME",
+                  "materno": "TESTLASTNAME",
+                  'pasaporte': [],
+                  "nombres": "TEST NAME",
+                  'email': [{'email': 'test2099@edx.org'}],
+                  "indiv_id": "0000000108"}]}}}))]
         post_data = {
-            'datos': 'aa bb cc dd, student2@edx.org, 10-8',
+            'datos': 'aa bb cc dd, test2099@edx.org, 10-8',
             'course': self.course.id,
             'modes': 'audit',
             'enroll': '1'
         }
-        self.assertTrue(User.objects.filter(email="student2@edx.org").exists())
-        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+        self.assertFalse(User.objects.filter(email="test2099@edx.org").exists())
         response = self.client.post(
             reverse('uchileedxlogin-login:external'), post_data)
         self.assertEqual(response.status_code, 200)
-        self.assertTrue('id="lista_not_saved"' in response._container[0].decode())
-        self.assertFalse(EdxLoginUser.objects.filter(run="0000000108").exists())
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertTrue(EdxLoginUser.objects.filter(run="0000000108").exists())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertFalse(edxlogin_user.have_sso)
+        self.assertEqual(edxlogin_user.user.email, 'test2099@edx.org')
+
+    @patch('requests.get')
+    def test_external_post_with_run_fail_get_data_2(self, get):
+        """
+            Test external view post with run, when fail to get data from ph api
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':200,'persona':[ ]}}}))]
+        post_data = {
+            'datos': 'aa bb cc dd, test2099@edx.org, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertFalse(User.objects.filter(email="test2099@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertTrue(EdxLoginUser.objects.filter(run="0000000108").exists())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertFalse(edxlogin_user.have_sso)
+        self.assertEqual(edxlogin_user.user.email, 'test2099@edx.org')
+
+    @patch('requests.get')
+    def test_external_post_with_run_fail_get_data_3(self, get):
+        """
+            Test external view post with run, when fail to get data from ph api
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':{'status_code':400,'persona':[ ]}}}))]
+        post_data = {
+            'datos': 'aa bb cc dd, test2099@edx.org, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertFalse(User.objects.filter(email="test2099@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertTrue(EdxLoginUser.objects.filter(run="0000000108").exists())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertFalse(edxlogin_user.have_sso)
+        self.assertEqual(edxlogin_user.user.email, 'test2099@edx.org')
+
+    @patch('requests.get')
+    def test_external_post_with_run_fail_get_data_4(self, get):
+        """
+            Test external view post with run, when fail to get data from ph api
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(200,
+            json.dumps({'data':{'getRowsPersona':None}}))]
+        post_data = {
+            'datos': 'aa bb cc dd, test2099@edx.org, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertFalse(User.objects.filter(email="test2099@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertTrue(EdxLoginUser.objects.filter(run="0000000108").exists())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertFalse(edxlogin_user.have_sso)
+        self.assertEqual(edxlogin_user.user.email, 'test2099@edx.org')
+
+    @patch('requests.get')
+    def test_external_post_with_run_fail_get_data_5(self, get):
+        """
+            Test external view post with run, when fail to get data from ph api
+        """
+        get.side_effect = [
+            namedtuple("Request",
+            ["status_code",
+            "text"])(400,json.dumps({}))]
+        post_data = {
+            'datos': 'aa bb cc dd, test2099@edx.org, 10-8',
+            'course': self.course.id,
+            'modes': 'audit',
+            'enroll': '1'
+        }
+        self.assertFalse(User.objects.filter(email="test2099@edx.org").exists())
+        response = self.client.post(
+            reverse('uchileedxlogin-login:external'), post_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue('id="lista_saved"' in response._container[0].decode())
+        self.assertTrue(EdxLoginUser.objects.filter(run="0000000108").exists())
+        edxlogin_user = EdxLoginUser.objects.get(run="0000000108")
+        self.assertFalse(edxlogin_user.have_sso)
+        self.assertEqual(edxlogin_user.user.email, 'test2099@edx.org')
